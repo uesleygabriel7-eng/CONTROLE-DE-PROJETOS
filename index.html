@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Controle de Projetos</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --success: #16a34a;
+            --warning: #f59e0b;
+            --danger: #dc2626;
+            --info: #0284c7;
+            --bg: #f3f4f6;
+            --card: #ffffff;
+            --text: #1f2937;
+            --text-light: #6b7280;
+            --border: #e5e7eb;
+            --modal-bg: rgba(0, 0, 0, 0.6);
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .hidden { display: none !important; }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            background: var(--card);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        h1, h2, h3 { margin-top: 0; }
+
+        /* Estilos dos Botões e Inputs */
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+            font-size: 0.9rem;
+        }
+        button:hover { background-color: var(--primary-hover); }
+        button.danger { background-color: var(--danger); }
+        button.warning { background-color: var(--warning); color: #000; }
+        button.success { background-color: var(--success); }
+        button.info { background-color: var(--info); }
+        button.secondary { background-color: #6b7280; color: white; }
+        button.secondary:hover { background-color: #4b5563; }
+        button.global-btn { background-color: #4f46e5; font-size: 1rem; padding: 10px 20px; }
+        button.manager-btn { background-color: #111827; font-size: 1rem; padding: 10px 20px; color: #fff;}
+        
+        button.icon-btn {
+            background: none; border: none; color: var(--text-light);
+            padding: 2px 6px; font-size: 1rem; cursor: pointer; border-radius: 4px;
+        }
+        button.icon-btn:hover { background: var(--border); color: var(--text); }
+        
+        input[type="text"], input[type="password"], select, textarea {
+            padding: 10px; border: 1px solid var(--border); border-radius: 5px;
+            width: 100%; box-sizing: border-box; margin-bottom: 10px;
+            font-size: 0.95rem; font-family: inherit;
+        }
+
+        .search-bar input { margin-bottom: 0; }
+        select { font-weight: 500; color: var(--primary); cursor: pointer; }
+
+        /* Tela de Perfis */
+        .profiles-grid {
+            display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; margin-bottom: 20px;
+        }
+        .profile-card {
+            background: var(--card); padding: 20px 40px; border-radius: 10px;
+            cursor: pointer; border: 2px solid transparent; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            font-size: 1.2rem; font-weight: bold; text-align: center; transition: 0.2s;
+        }
+        .profile-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+
+        /* Dashboard */
+        .top-bar {
+            display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;
+        }
+        .top-bar-actions { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+
+        .add-project-form {
+            background: var(--card); padding: 15px; border-radius: 10px; margin-bottom: 20px;
+            display: flex; gap: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); align-items: center;
+        }
+
+        /* Sistema de Abas */
+        .tabs {
+            display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border); padding-bottom: 0;
+        }
+        .tab-btn {
+            background: transparent; color: var(--text-light); border: none; font-size: 1.05rem; 
+            padding: 10px 20px; cursor: pointer; border-radius: 5px 5px 0 0; transition: 0.2s;
+            margin-bottom: -2px; 
+        }
+        .tab-btn.active {
+            color: var(--primary); font-weight: bold; border-bottom: 3px solid var(--primary);
+        }
+        .tab-btn:hover:not(.active) { color: var(--text); background: var(--card); }
+
+        /* Cards de Projeto */
+        .projects-list { 
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); 
+            gap: 20px; align-items: start;
+        }
+        .project-card {
+            background-color: var(--card); padding: 20px; border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid var(--border);
+            border-left: 6px solid var(--primary); display: flex; flex-direction: column;
+        }
+        .project-card.impediment { border-left-color: var(--warning); background-color: #fffbeb; }
+        .project-card.completed { border-left-color: var(--success); }
+
+        .project-header { margin-bottom: 15px; }
+        .project-title-container {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+        }
+        .project-header h2 { margin: 0; font-size: 1.3rem; word-break: break-word; }
+
+        .draftsman-badge {
+            display: inline-block; padding: 4px 8px; background: #e5e7eb; 
+            border-radius: 4px; font-size: 0.85rem; font-weight: bold; color: #374151; margin-bottom: 10px;
+        }
+
+        .progress-container {
+            width: 100%; background-color: var(--border); border-radius: 10px;
+            height: 12px; overflow: hidden; margin-bottom: 8px;
+        }
+        .progress-bar { height: 100%; background-color: var(--primary); transition: width 0.4s ease; }
+
+        .timeline {
+            margin-top: 15px; font-size: 0.85rem; background: #f9fafb; padding: 10px;
+            border-radius: 5px; border: 1px solid var(--border); max-height: 200px; overflow-y: auto; flex-grow: 1;
+        }
+        .timeline-item {
+            display: flex; flex-direction: column; padding: 8px 0; border-bottom: 1px dashed var(--border);
+        }
+        .timeline-item:last-child { border-bottom: none; }
+        .timeline-top { display: flex; justify-content: space-between; font-weight: bold; align-items: center;}
+        .timeline-obs { color: #4b5563; margin-top: 4px; font-style: italic; display: flex; justify-content: space-between; align-items: center; }
+        .timeline-date { color: var(--text-light); font-weight: normal; font-size: 0.8rem; }
+        .timeline-actions { display: flex; gap: 5px; }
+
+        .actions {
+            margin-top: 15px; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
+        }
+        .actions button { flex: 1; min-width: 80px; padding: 6px; font-size: 0.85rem;}
+
+        /* MODAIS CUSTOMIZADOS */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--modal-bg); display: flex; justify-content: center; align-items: center;
+            z-index: 1000; backdrop-filter: blur(4px);
+        }
+        .modal-content {
+            background-color: var(--card); padding: 25px; border-radius: 12px;
+            width: 90%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            animation: modalFadeIn 0.2s ease;
+        }
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .modal-title { margin-top: 0; color: var(--primary); font-size: 1.3rem;}
+        .modal-desc { margin-bottom: 15px; color: var(--text-light); font-size: 0.95rem; line-height: 1.4;}
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;}
+    </style>
+</head>
+<body>
+
+    <div id="custom-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 id="modal-title" class="modal-title">Título</h3>
+            <p id="modal-desc" class="modal-desc">Descrição</p>
+            <textarea id="modal-input" rows="3" placeholder="Digite sua observação..."></textarea>
+            <div class="modal-buttons">
+                <button class="secondary" onclick="closeModal(false)">Cancelar</button>
+                <button onclick="closeModal(true)">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="password-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 id="pwd-modal-title" class="modal-title">Segurança</h3>
+            <p id="pwd-modal-desc" class="modal-desc">Insira a senha do perfil.</p>
+            <input type="password" id="pwd-modal-input" placeholder="Sua senha secreta..." autocomplete="new-password">
+            <div class="modal-buttons">
+                <button class="secondary" onclick="closePasswordModal(false)">Cancelar</button>
+                <button onclick="closePasswordModal(true)">Entrar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirm-modal" class="modal-overlay hidden">
+        <div class="modal-content" style="text-align: center;">
+            <h3 id="confirm-title" class="modal-title" style="color: var(--danger);">Atenção</h3>
+            <p id="confirm-desc" class="modal-desc">Tem certeza que deseja fazer isso?</p>
+            <div class="modal-buttons" style="justify-content: center;">
+                <button class="secondary" onclick="closeConfirmModal(false)">OK / Cancelar</button>
+                <button class="danger" id="confirm-btn-yes" onclick="closeConfirmModal(true)">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div id="view-profiles">
+            <div class="header">
+                <h1>👥 Selecionar Desenhista</h1>
+                <p>Escolha o perfil para acessar a área de trabalho</p>
+            </div>
+            <div class="profiles-grid" id="profiles-container"></div>
+            
+            <div class="header" style="max-width: 400px; margin: 0 auto; padding: 15px;">
+                <h3>Adicionar Novo Desenhista</h3>
+                <input type="text" id="new-user-name" placeholder="Nome do desenhista...">
+                <button onclick="addUser()" style="width: 100%;">+ Adicionar</button>
+            </div>
+
+            <hr style="margin: 40px 0; border: none; border-top: 1px solid var(--border);">
+            <div class="header" style="background: transparent; box-shadow: none; padding: 0; margin-bottom: 25px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                    <div style="text-align: left;">
+                        <h2 style="margin: 0; color: #111827; display: flex; align-items: center; gap: 8px;">
+                            👔 Status Geral Projetos
+                        </h2>
+                        <p style="margin: 5px 0 0 0; color: var(--text-light); font-size: 0.9rem;">
+                            Acompanhamento corporativo de todos os projetos (Somente Leitura).
+                        </p>
+                    </div>
+                    <div class="top-bar-actions">
+                        <div class="search-bar">
+                            <input type="text" id="manager-search-input" onkeyup="renderGlobalFeed()" placeholder="🔍 Buscar projeto ou desenhista...">
+                        </div>
+                        <button class="manager-btn" onclick="exportManagerReport()">📊 PDF da Aba Atual</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tabs">
+                <button id="tab-andamento" class="tab-btn active" onclick="switchManagerTab('andamento')">Em Andamento</button>
+                <button id="tab-concluidos" class="tab-btn" onclick="switchManagerTab('concluidos')">Concluídos</button>
+            </div>
+            
+            <div class="projects-list" id="global-feed-container"></div>
+        </div>
+
+        <div id="view-dashboard" class="hidden">
+            <div class="header" style="margin-bottom: 5px;">
+                <div class="top-bar">
+                    <button onclick="logout()">← Trocar Perfil</button>
+                    <h1 id="dashboard-title" style="margin: 0;">Área de Trabalho</h1>
+                    <div class="top-bar-actions">
+                        <div class="search-bar">
+                            <input type="text" id="search-input" onkeyup="renderProjects()" placeholder="🔍 Buscar projeto...">
+                        </div>
+                        <button class="global-btn" onclick="exportDraftsmanReport()">📊 PDF da Aba Atual</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tabs" style="margin-bottom: 20px;">
+                <button id="tab-draftsman-andamento" class="tab-btn active" onclick="switchDraftsmanTab('andamento')">Em Andamento</button>
+                <button id="tab-draftsman-concluidos" class="tab-btn" onclick="switchDraftsmanTab('concluidos')">Concluídos</button>
+            </div>
+
+            <div class="add-project-form">
+                <input type="text" id="new-project-name" placeholder="Nome do novo projeto..." style="margin-bottom: 0;">
+                <button onclick="addProject()" style="white-space: nowrap;">+ Criar Projeto</button>
+            </div>
+
+            <div class="projects-list" id="projects-container"></div>
+        </div>
+    </div>
+
+    <script>
+        const STAGES = [
+            "Aguardando Início (Fila)",
+            "Em Desenho",
+            "Projeto Definitivo: Correção do Alexandre",
+            "Projeto Definitivo: Correção de outro desenhista",
+            "Corrigindo Defeitos de Projetos Apontados na Correção",
+            "Em Assinatura",
+            "Projeto Recebido Assinado para Fazer OF",
+            "OF Sendo DESENHADA",
+            "OF: Correção do Alexandre",
+            "OF: Correção de outro desenhista",
+            "OF Sendo Corrigida Falhas Apontadas na Correção",
+            "OF Sendo Impressa",
+            "OF Entregue"
+        ];
+
+        let appData = JSON.parse(localStorage.getItem('projetosData14')) || {
+            users: ["Uesley", "Gabriel"], passwords: {}, projects: []
+        };
+        let currentUser = null;
+        let managerCurrentTab = 'andamento';
+        let draftsmanCurrentTab = 'andamento'; 
+
+        let modalResolve = null, confirmResolve = null, passwordResolve = null;
+
+        // ---------- EVENTOS DE TECLADO (ENTER PARA CONFIRMAR) ----------
+        document.addEventListener('DOMContentLoaded', () => {
+            // Modal de Input (Permite pular linha com Shift+Enter, mas Enter limpo confirma)
+            document.getElementById('modal-input').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    closeModal(true);
+                }
+            });
+
+            // Modal de Senha
+            document.getElementById('pwd-modal-input').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    closePasswordModal(true);
+                }
+            });
+
+            // Inputs principais (Novo Desenhista e Novo Projeto)
+            document.getElementById('new-user-name').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') addUser();
+            });
+
+            document.getElementById('new-project-name').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') addProject();
+            });
+        });
+
+        function openModal(title, desc, placeholder, defaultValue = '') {
+            document.getElementById('custom-modal').classList.remove('hidden');
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-desc').textContent = desc;
+            const input = document.getElementById('modal-input');
+            input.placeholder = placeholder; input.value = defaultValue; input.focus();
+            return new Promise(resolve => { modalResolve = resolve; });
+        }
+        function closeModal(isConfirmed) {
+            document.getElementById('custom-modal').classList.add('hidden');
+            if (modalResolve) { modalResolve(isConfirmed ? document.getElementById('modal-input').value : null); modalResolve = null; }
+        }
+
+        function openPasswordModal(title, desc) {
+            document.getElementById('password-modal').classList.remove('hidden');
+            document.getElementById('pwd-modal-title').textContent = title;
+            document.getElementById('pwd-modal-desc').textContent = desc;
+            document.getElementById('pwd-modal-input').value = ''; document.getElementById('pwd-modal-input').focus();
+            return new Promise(resolve => { passwordResolve = resolve; });
+        }
+        function closePasswordModal(isConfirmed) {
+            document.getElementById('password-modal').classList.add('hidden');
+            if (passwordResolve) { passwordResolve(isConfirmed ? document.getElementById('pwd-modal-input').value : null); passwordResolve = null; }
+        }
+
+        function openConfirmModal(title, desc, isAlertOnly = false) {
+            document.getElementById('confirm-modal').classList.remove('hidden');
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-desc').textContent = desc;
+            if (isAlertOnly) document.getElementById('confirm-btn-yes').classList.add('hidden');
+            else document.getElementById('confirm-btn-yes').classList.remove('hidden');
+            return new Promise(resolve => { confirmResolve = resolve; });
+        }
+        function closeConfirmModal(isConfirmed) {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            if (confirmResolve) { confirmResolve(isConfirmed); confirmResolve = null; }
+        }
+
+        function saveData() { localStorage.setItem('projetosData14', JSON.stringify(appData)); }
+
+        function sanitizeForPDF(text) {
+            if (!text) return "";
+            return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                .replace(/Ø/gi, '(diam)').replace(/º/g, 'o.').replace(/ª/g, 'a.')
+                .replace(/[^\x20-\x7E]/g, ''); 
+        }
+
+        // ---------- SISTEMA DE LOGIN ----------
+        function renderProfiles() {
+            const container = document.getElementById('profiles-container');
+            container.innerHTML = '';
+            appData.users.forEach(user => {
+                const div = document.createElement('div');
+                div.className = 'profile-card'; div.textContent = user;
+                div.onclick = () => handleLoginClick(user);
+                container.appendChild(div);
+            });
+            renderGlobalFeed(); 
+        }
+
+        function addUser() {
+            const input = document.getElementById('new-user-name'); const name = input.value.trim();
+            if (name && !appData.users.includes(name)) { appData.users.push(name); saveData(); renderProfiles(); input.value = ''; }
+        }
+
+        async function handleLoginClick(user) {
+            if (!appData.passwords) appData.passwords = {};
+
+            if (!appData.passwords[user]) {
+                const newPass = await openPasswordModal("Primeiro Acesso", `Crie uma senha para proteger o perfil de ${user}:`);
+                if (newPass !== null && newPass.trim() !== "") { appData.passwords[user] = newPass; saveData(); proceedLogin(user); } 
+                else if (newPass !== null) openConfirmModal("Aviso", "A senha não pode ser vazia.", true);
+            } else {
+                const inputPass = await openPasswordModal("Acesso Restrito", `Digite a senha para ${user} (Senha mestra disponível):`);
+                if (inputPass === null) return; 
+
+                if (inputPass === appData.passwords[user]) proceedLogin(user);
+                else if (inputPass === "mestre123") {
+                    const resetPass = await openPasswordModal("Redefinir Senha", "SENHA MESTRA ACEITA! Digite a nova senha:");
+                    if (resetPass !== null && resetPass.trim() !== "") { appData.passwords[user] = resetPass; saveData(); proceedLogin(user); }
+                } else openConfirmModal("Acesso Negado", "Senha incorreta!", true);
+            }
+        }
+
+        function proceedLogin(user) {
+            currentUser = user;
+            document.getElementById('view-profiles').classList.add('hidden');
+            document.getElementById('view-dashboard').classList.remove('hidden');
+            document.getElementById('dashboard-title').textContent = `Projetos: ${user}`;
+            document.getElementById('search-input').value = '';
+            switchDraftsmanTab('andamento'); 
+        }
+
+        function logout() {
+            currentUser = null;
+            document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('view-profiles').classList.remove('hidden');
+            renderGlobalFeed();
+        }
+
+        // ---------- FUNÇÕES DO DESENHISTA ----------
+        async function addProject() {
+            const input = document.getElementById('new-project-name'); const name = input.value.trim();
+            if (name) {
+                const obs = await openModal("Novo Projeto na Fila", `Adicionando à etapa: "${STAGES[0]}"`, "Por que não vai iniciar agora?");
+                if (obs !== null) {
+                    const newProject = {
+                        id: Date.now().toString(), owner: currentUser, name: name, stageIndex: 0, isImpeded: false,
+                        history: [{ stage: STAGES[0], obs: obs || "Sem observação", date: new Date().toLocaleString('pt-BR') }]
+                    };
+                    appData.projects.unshift(newProject); saveData(); 
+                    switchDraftsmanTab('andamento'); 
+                    input.value = '';
+                }
+            }
+        }
+
+        async function editProjectName(id) {
+            const project = appData.projects.find(p => p.id === id);
+            const newName = await openModal("Editar Nome do Projeto", "Qual será o novo nome?", "Digite o novo nome...", project.name);
+            if (newName !== null && newName.trim() !== "") { project.name = newName.trim(); saveData(); renderProjects(); }
+        }
+
+        async function deleteProject(id) {
+            const confirm = await openConfirmModal("Excluir Projeto", "Apagará o histórico permanentemente. Continuar?");
+            if (confirm) { appData.projects = appData.projects.filter(p => p.id !== id); saveData(); renderProjects(); }
+        }
+
+        async function updateStage(id, selectElement) {
+            const project = appData.projects.find(p => p.id === id); const newIndex = parseInt(selectElement.value);
+            if (project.stageIndex !== newIndex) {
+                const obs = await openModal("Avançar Etapa", `Movendo para: "${STAGES[newIndex]}"`, "Adicione uma observação (Opcional):");
+                if (obs === null) selectElement.value = project.stageIndex;
+                else {
+                    project.stageIndex = newIndex;
+                    project.history.unshift({ stage: STAGES[newIndex], obs: obs || "Sem observação", date: new Date().toLocaleString('pt-BR') });
+                    saveData(); renderProjects();
+                }
+            }
+        }
+
+        async function registerEvent(id) {
+            const project = appData.projects.find(p => p.id === id);
+            const obs = await openModal("Registrar Acontecimento", "O que ocorreu com esse projeto?", "Ex: Cliente pediu alteração extra...");
+            if (obs !== null && obs.trim() !== "") {
+                project.history.unshift({ stage: "📢 REGISTRO EXTRA", obs: obs, date: new Date().toLocaleString('pt-BR') });
+                saveData(); renderProjects();
+            }
+        }
+
+        async function editHistoryItem(projectId, historyIndex) {
+            const project = appData.projects.find(p => p.id === projectId);
+            const newObs = await openModal("Editar Observação", `Etapa: ${project.history[historyIndex].stage}`, "Modifique a observação...", project.history[historyIndex].obs);
+            if (newObs !== null) { project.history[historyIndex].obs = newObs || "Sem observação"; saveData(); renderProjects(); }
+        }
+
+        async function deleteHistoryItem(projectId, historyIndex) {
+            const project = appData.projects.find(p => p.id === projectId);
+            const confirm = await openConfirmModal("Apagar Etapa/Registro", "Deseja remover este item do histórico?");
+            if (confirm) {
+                project.history.splice(historyIndex, 1);
+                if (project.history.length === 0) {
+                    project.history.push({ stage: STAGES[0], obs: "Histórico reiniciado", date: new Date().toLocaleString('pt-BR') });
+                    project.stageIndex = 0;
+                } else {
+                    const firstRealStage = project.history.find(h => h.stage !== "📢 REGISTRO EXTRA" && h.stage !== "🔴 IMPEDIMENTO / PAUSADO" && h.stage !== "🟢 Retomado após Impedimento");
+                    if (firstRealStage) project.stageIndex = STAGES.indexOf(firstRealStage.stage) !== -1 ? STAGES.indexOf(firstRealStage.stage) : project.stageIndex;
+                }
+                saveData(); renderProjects();
+            }
+        }
+
+        async function toggleImpediment(id) {
+            const project = appData.projects.find(p => p.id === id);
+            if (project.isImpeded) {
+                const obs = await openModal("Retomar Projeto", "O impedimento foi resolvido?", "Descreva a solução...");
+                if (obs !== null) {
+                    project.isImpeded = false;
+                    project.history.unshift({ stage: "🟢 Retomado após Impedimento", obs: obs || "Impedimento solucionado", date: new Date().toLocaleString('pt-BR') });
+                    saveData(); renderProjects();
+                }
+            } else {
+                const obs = await openModal("Registrar Impedimento", "O projeto está travado?", "Motivo do impedimento (Obrigatório)");
+                if (obs !== null && obs.trim() !== "") {
+                    project.isImpeded = true;
+                    project.history.unshift({ stage: "🔴 IMPEDIMENTO / PAUSADO", obs: obs, date: new Date().toLocaleString('pt-BR') });
+                    saveData(); renderProjects();
+                } else if (obs !== null) openConfirmModal("Atenção", "Para pausar, informe o motivo!", true);
+            }
+        }
+
+        // ---------- RENDERIZAR FEED DO GESTOR ----------
+        function switchManagerTab(tab) {
+            managerCurrentTab = tab;
+            document.getElementById('tab-andamento').classList.toggle('active', tab === 'andamento');
+            document.getElementById('tab-concluidos').classList.toggle('active', tab === 'concluidos');
+            renderGlobalFeed();
+        }
+
+        function renderGlobalFeed() {
+            const container = document.getElementById('global-feed-container');
+            container.innerHTML = '';
+            
+            const searchTerm = (document.getElementById('manager-search-input').value || '').toLowerCase();
+            
+            const filteredProjects = appData.projects.filter(p => {
+                const matchesSearch = p.name.toLowerCase().includes(searchTerm) || p.owner.toLowerCase().includes(searchTerm);
+                const matchesTab = managerCurrentTab === 'andamento' ? p.stageIndex !== 12 : p.stageIndex === 12;
+                return matchesSearch && matchesTab;
+            });
+
+            if (filteredProjects.length === 0) {
+                container.style.display = 'block';
+                container.innerHTML = `<p style="text-align:center; color:gray; font-size: 1.1rem; margin-top: 20px;">Nenhum projeto encontrado nesta aba.</p>`;
+                return;
+            } else container.style.display = 'grid';
+
+            filteredProjects.forEach(project => {
+                const isCompleted = project.stageIndex === 12;
+                const cardClass = isCompleted ? 'completed' : (project.isImpeded ? 'impediment' : '');
+                
+                const card = document.createElement('div');
+                card.className = `project-card ${cardClass}`;
+                const progressPercent = Math.round((project.stageIndex / (STAGES.length - 1)) * 100);
+
+                let historyHtml = '';
+                project.history.forEach((item) => {
+                    historyHtml += `
+                        <div class="timeline-item">
+                            <div class="timeline-top">
+                                <span style="${item.stage === '📢 REGISTRO EXTRA' ? 'color: #9333ea;' : ''}">${item.stage}</span>
+                            </div>
+                            <div class="timeline-obs">
+                                <span>↳ Obs: ${item.obs}</span>
+                                <span class="timeline-date">${item.date}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                card.innerHTML = `
+                    <div class="project-header">
+                        <span class="draftsman-badge">👤 Desenhista: ${project.owner}</span>
+                        <h2 style="font-size: 1.2rem; margin-bottom: 5px;">${project.name}</h2>
+                        <div style="font-weight: bold; color: ${isCompleted ? 'var(--success)' : (project.isImpeded ? 'var(--danger)' : 'var(--primary)')}; margin-top: 10px;">
+                            ${project.isImpeded ? '⚠️ PAUSADO / IMPEDIDO' : (isCompleted ? '✅ CONCLUÍDO' : '▶ ' + STAGES[project.stageIndex])}
+                        </div>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar" style="width: ${progressPercent}%; background-color: ${isCompleted ? 'var(--success)' : (project.isImpeded ? 'var(--warning)' : 'var(--primary)')}"></div>
+                    </div>
+                    <p style="text-align: right; margin-top: 5px; font-size: 0.85rem; color: #6b7280; margin-bottom: 0;">Progresso: ${progressPercent}%</p>
+                    
+                    <div class="timeline">
+                        <strong>Histórico e Observações:</strong><br>
+                        ${historyHtml}
+                    </div>
+                    <div class="actions" style="margin-top: 15px; display: flex; justify-content: flex-end;">
+                        <button class="info" onclick="exportReportPDF('${project.id}')" style="width: auto; padding: 8px 15px;">📄 PDF Individual</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // ---------- RENDERIZAR FEED DO DESENHISTA ----------
+        function switchDraftsmanTab(tab) {
+            draftsmanCurrentTab = tab;
+            document.getElementById('tab-draftsman-andamento').classList.toggle('active', tab === 'andamento');
+            document.getElementById('tab-draftsman-concluidos').classList.toggle('active', tab === 'concluidos');
+            renderProjects();
+        }
+
+        function renderProjects() {
+            const container = document.getElementById('projects-container');
+            container.innerHTML = '';
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            
+            let userProjects = appData.projects.filter(p => p.owner === currentUser);
+            
+            userProjects = userProjects.filter(p => {
+                if (draftsmanCurrentTab === 'andamento') return p.stageIndex !== 12;
+                return p.stageIndex === 12;
+            });
+
+            userProjects = userProjects.filter(p => p.name.toLowerCase().includes(searchTerm));
+
+            if (userProjects.length === 0) {
+                container.style.display = 'block';
+                container.innerHTML = searchTerm 
+                    ? '<p style="text-align:center; color:gray; margin-top: 50px;">Nenhum projeto encontrado.</p>' 
+                    : `<p style="text-align:center; color:gray; font-size: 1.1rem; margin-top: 50px;">Nenhum projeto ${draftsmanCurrentTab === 'andamento' ? 'em andamento' : 'concluído'}.</p>`;
+                return;
+            } else container.style.display = 'grid';
+
+            userProjects.forEach(project => {
+                const isCompleted = project.stageIndex === 12;
+                const cardClass = isCompleted ? 'completed' : (project.isImpeded ? 'impediment' : '');
+                const card = document.createElement('div'); 
+                card.className = `project-card ${cardClass}`;
+                const progressPercent = Math.round((project.stageIndex / (STAGES.length - 1)) * 100);
+
+                let optionsHtml = ''; STAGES.forEach((stage, idx) => { optionsHtml += `<option value="${idx}" ${idx === project.stageIndex ? 'selected' : ''}>${idx + 1}. ${stage}</option>`; });
+                let historyHtml = '';
+                project.history.forEach((item, index) => {
+                    historyHtml += `
+                        <div class="timeline-item">
+                            <div class="timeline-top">
+                                <span style="${item.stage === '📢 REGISTRO EXTRA' ? 'color: #9333ea;' : ''}">${item.stage}</span>
+                                <div class="timeline-actions">
+                                    <button class="icon-btn" onclick="editHistoryItem('${project.id}', ${index})" title="Editar Observação">✏️</button>
+                                    <button class="icon-btn" onclick="deleteHistoryItem('${project.id}', ${index})" title="Apagar Etapa/Registro">🗑️</button>
+                                </div>
+                            </div>
+                            <div class="timeline-obs"><span>↳ Obs: ${item.obs}</span><span class="timeline-date">${item.date}</span></div>
+                        </div>`;
+                });
+
+                card.innerHTML = `
+                    <div class="project-header">
+                        <div class="project-title-container">
+                            <h2>${project.name}</h2>
+                            <button class="icon-btn" onclick="editProjectName('${project.id}')" title="Editar Nome" style="font-size: 1.2rem; margin-top: -2px;">✏️</button>
+                        </div>
+                        <select onchange="updateStage('${project.id}', this)" ${project.isImpeded ? 'disabled' : ''}>${optionsHtml}</select>
+                    </div>
+                    <div class="progress-container"><div class="progress-bar" style="width: ${progressPercent}%; background-color: ${isCompleted ? 'var(--success)' : (project.isImpeded ? 'var(--warning)' : 'var(--primary)')}"></div></div>
+                    <p style="text-align: right; margin-top: 5px; font-size: 0.85rem; color: #6b7280; margin-bottom: 0;">Progresso: ${progressPercent}%</p>
+                    <div class="timeline"><strong>Histórico e Observações:</strong><br>${historyHtml}</div>
+                    <div class="actions">
+                        <button class="secondary" onclick="registerEvent('${project.id}')" title="Registrar Acontecimento">📝 Fato</button>
+                        <button class="info" onclick="exportReportPDF('${project.id}')">📄 PDF</button>
+                        <button class="${project.isImpeded ? 'success' : 'warning'}" onclick="toggleImpediment('${project.id}')">${project.isImpeded ? '▶ Retomar' : '⏸ Pausar'}</button>
+                        <button class="danger" onclick="deleteProject('${project.id}')">Excluir</button>
+                    </div>`;
+                container.appendChild(card);
+            });
+        }
+
+        // ---------- RELATÓRIOS PDF ----------
+        function exportReportPDF(id) {
+            const project = appData.projects.find(p => p.id === id);
+            const doc = new window.jspdf.jsPDF();
+            doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(37, 99, 235); doc.text("Historico de Projeto", 20, 20);
+            doc.setFontSize(11); doc.setTextColor(80, 80, 80); doc.setFont("helvetica", "normal"); doc.text(`Projeto:`, 20, 32);
+            doc.setFont("helvetica", "bold"); doc.setTextColor(0, 0, 0); doc.text(sanitizeForPDF(project.name), 37, 32);
+            doc.setFont("helvetica", "normal"); doc.setTextColor(80, 80, 80); doc.text(`Status Atual:`, 20, 39);
+            
+            const isCompleted = project.stageIndex === 12;
+            if (isCompleted) {
+                doc.setTextColor(22, 163, 74); 
+                doc.text("CONCLUIDO", 45, 39);
+            } else {
+                doc.setFont("helvetica", "bold"); doc.setTextColor(project.isImpeded ? 220 : 22, project.isImpeded ? 38 : 163, project.isImpeded ? 38 : 74);
+                doc.text(project.isImpeded ? "PAUSADO / IMPEDIDO" : sanitizeForPDF(STAGES[project.stageIndex]), 45, 39);
+            }
+
+            doc.setDrawColor(220, 220, 220); doc.line(20, 45, 190, 45);
+
+            let yOffset = 55;
+            project.history.forEach((item, index) => {
+                if (yOffset > 270) { doc.addPage(); yOffset = 20; }
+                const stepNum = project.history.length - index;
+                doc.setFontSize(11); doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold");
+                if(item.stage === "📢 REGISTRO EXTRA") doc.setTextColor(147, 51, 234); 
+                doc.text(`${stepNum}. ${sanitizeForPDF(item.stage)}`, 20, yOffset);
+                doc.setFontSize(9); doc.setTextColor(150, 150, 150); doc.setFont("helvetica", "normal"); doc.text(item.date, 190, yOffset, { align: "right" });
+                yOffset += 4;
+                const splitObs = doc.splitTextToSize(sanitizeForPDF(item.obs), 160); const boxHeight = (splitObs.length * 5) + 6;
+                doc.setFillColor(248, 249, 250); doc.roundedRect(20, yOffset, 170, boxHeight, 2, 2, 'F');
+                doc.setFontSize(10); doc.setTextColor(75, 85, 99); doc.setFont("helvetica", "italic"); doc.text(splitObs, 25, yOffset + 6);
+                yOffset += boxHeight + 10;
+            });
+            doc.save(`Projeto_${sanitizeForPDF(project.name.replace(/\s+/g, '_'))}.pdf`);
+        }
+
+        function exportDraftsmanReport() { 
+            const isAndamento = draftsmanCurrentTab === 'andamento';
+            const projectList = appData.projects.filter(p => p.owner === currentUser && (isAndamento ? p.stageIndex !== 12 : p.stageIndex === 12));
+            const titleSuffix = `Projetos ${sanitizeForPDF(currentUser)} - ${isAndamento ? "Em Andamento" : "Concluidos"}`;
+            generateListPDF(projectList, titleSuffix); 
+        }
+        
+        function exportManagerReport() { 
+            const isAndamento = managerCurrentTab === 'andamento';
+            const projectList = appData.projects.filter(p => isAndamento ? p.stageIndex !== 12 : p.stageIndex === 12);
+            const titleSuffix = isAndamento ? "Geral - Em Andamento" : "Geral - Concluidos";
+            generateListPDF(projectList, titleSuffix); 
+        }
+
+        function generateListPDF(projectList, titleSuffix) {
+            const doc = new window.jspdf.jsPDF();
+            
+            doc.setFillColor(37, 99, 235); doc.rect(0, 0, 210, 35, 'F');
+            doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(255, 255, 255);
+            doc.text(`Relatorio de Status`, 20, 20);
+            doc.setFontSize(11); doc.setFont("helvetica", "normal");
+            doc.text(`Filtro: ${titleSuffix}  |  Gerado em: ${new Date().toLocaleDateString('pt-BR')} as ${new Date().toLocaleTimeString('pt-BR')}`, 20, 28);
+
+            let yOffset = 45;
+            
+            if (projectList.length === 0) { 
+                doc.setTextColor(100, 100, 100); 
+                doc.text("Nenhum projeto encontrado para esta listagem.", 20, yOffset); 
+            } else {
+                projectList.forEach((p) => {
+                    if (yOffset > 250) { doc.addPage(); yOffset = 20; }
+                    
+                    const isImpeded = p.isImpeded;
+                    const isCompleted = p.stageIndex === 12;
+                    
+                    doc.setFillColor(249, 250, 251); 
+                    doc.setDrawColor(229, 231, 235); 
+                    doc.roundedRect(20, yOffset, 170, 28, 2, 2, 'FD');
+
+                    let barColor = [37, 99, 235]; 
+                    if (isCompleted) barColor = [22, 163, 74]; 
+                    if (isImpeded && !isCompleted) barColor = [220, 38, 38]; 
+                    
+                    doc.setFillColor(barColor[0], barColor[1], barColor[2]);
+                    doc.rect(20, yOffset, 3, 28, 'F'); 
+
+                    doc.setFontSize(12); doc.setTextColor(31, 41, 55); doc.setFont("helvetica", "bold");
+                    doc.text(sanitizeForPDF(p.name), 28, yOffset + 8);
+                    
+                    doc.setFontSize(9); doc.setTextColor(107, 114, 128); doc.setFont("helvetica", "bold");
+                    doc.text(`Resp: ${sanitizeForPDF(p.owner)}`, 185, yOffset + 8, { align: 'right' });
+                    
+                    doc.setFontSize(10); doc.setFont("helvetica", "bold");
+                    if (isCompleted) {
+                        doc.setTextColor(22, 163, 74); 
+                        doc.text("CONCLUIDO", 28, yOffset + 15);
+                    } else if (isImpeded) { 
+                        doc.setTextColor(220, 38, 38); 
+                        doc.text("AVISO: PAUSADO / IMPEDIDO", 28, yOffset + 15); 
+                    } else { 
+                        doc.setTextColor(37, 99, 235); 
+                        doc.text(`ETAPA: ${sanitizeForPDF(STAGES[p.stageIndex]).toUpperCase()}`, 28, yOffset + 15); 
+                    }
+
+                    const realEvent = p.history.find(h => h.stage !== "📢 REGISTRO EXTRA");
+                    const obsToShow = realEvent ? realEvent.obs : "Sem observacao";
+                    doc.setFontSize(9); doc.setFont("helvetica", "italic"); doc.setTextColor(107, 114, 128);
+                    
+                    const shortObs = sanitizeForPDF(obsToShow).substring(0, 110) + (obsToShow.length > 110 ? "..." : "");
+                    doc.text(`Obs: ${shortObs}`, 28, yOffset + 22);
+
+                    yOffset += 34;
+                });
+            }
+            doc.save(`Relatorio_${titleSuffix.replace(/\s+/g, '_')}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`);
+        }
+
+        renderProfiles(); // Inicializa
+    </script>
+</body>
+</html>

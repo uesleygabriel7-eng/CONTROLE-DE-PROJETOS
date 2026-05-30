@@ -63,22 +63,27 @@
         .actions { margin-top: 15px; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
         .actions button { flex: 1; min-width: 80px; padding: 6px; font-size: 0.85rem;}
         
-        /* Modal e Loader Nuvem */
+        /* TELA DE CARREGAMENTO (TRAVA DE SEGURANÇA) */
+        #global-loader { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg); z-index: 99999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .spinner { border: 5px solid var(--border); border-top: 5px solid var(--primary); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Modais */
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--modal-bg); display: flex; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(4px); }
         .modal-content { background-color: var(--card); padding: 25px; border-radius: 12px; width: 90%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: modalFadeIn 0.2s ease; }
         @keyframes modalFadeIn { from { opacity: 0; transform: translateY(-20px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
         .modal-title { margin-top: 0; color: var(--primary); font-size: 1.3rem;}
         .modal-desc { margin-bottom: 15px; color: var(--text-light); font-size: 0.95rem; line-height: 1.4;}
         .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;}
-        #cloud-status { position: fixed; bottom: 10px; right: 10px; background: var(--card); padding: 8px 15px; border-radius: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); font-size: 0.85rem; font-weight: bold; display: flex; align-items: center; gap: 8px; z-index: 999; }
-        .cloud-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--success); }
-        .cloud-dot.loading { background: var(--warning); animation: pulse 1s infinite alternate; }
-        @keyframes pulse { from { opacity: 0.5; } to { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <div id="cloud-status"><div id="cloud-dot" class="cloud-dot loading"></div><span id="cloud-text">Conectando...</span></div>
+    <div id="global-loader">
+        <div class="spinner"></div>
+        <h2 style="color: var(--primary); margin: 0;">Sincronizando com a Nuvem...</h2>
+        <p style="color: var(--text-light);">Isso evita sobrescrever projetos.</p>
+    </div>
 
     <div id="custom-modal" class="modal-overlay hidden">
         <div class="modal-content">
@@ -134,12 +139,10 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                     <div style="text-align: left;">
                         <h2 style="margin: 0; color: #111827; display: flex; align-items: center; gap: 8px;">👔 Status Geral Projetos</h2>
-                        <p style="margin: 5px 0 0 0; color: var(--text-light); font-size: 0.9rem;">Acompanhamento corporativo em tempo real (Somente Leitura).</p>
+                        <p style="margin: 5px 0 0 0; color: var(--text-light); font-size: 0.9rem;">Acompanhamento corporativo em tempo real.</p>
                     </div>
                     <div class="top-bar-actions">
-                        <div class="search-bar">
-                            <input type="text" id="manager-search-input" onkeyup="renderGlobalFeed()" placeholder="🔍 Buscar projeto ou desenhista...">
-                        </div>
+                        <div class="search-bar"><input type="text" id="manager-search-input" onkeyup="renderGlobalFeed()" placeholder="🔍 Buscar projeto..."></div>
                         <button class="manager-btn" onclick="exportManagerReport()">📊 PDF da Aba Atual</button>
                     </div>
                 </div>
@@ -159,9 +162,7 @@
                     <button onclick="logout()">← Trocar Perfil</button>
                     <h1 id="dashboard-title" style="margin: 0;">Área de Trabalho</h1>
                     <div class="top-bar-actions">
-                        <div class="search-bar">
-                            <input type="text" id="search-input" onkeyup="renderProjects()" placeholder="🔍 Buscar projeto...">
-                        </div>
+                        <div class="search-bar"><input type="text" id="search-input" onkeyup="renderProjects()" placeholder="🔍 Buscar projeto..."></div>
                         <button class="global-btn" onclick="exportDraftsmanReport()">📊 PDF da Aba Atual</button>
                     </div>
                 </div>
@@ -183,7 +184,7 @@
 
     <script>
         // =========================================================================
-        // CHAVES OFICIAIS DO FIREBASE
+        // SUAS CHAVES DO FIREBASE INSERIDAS AQUI
         // =========================================================================
         const firebaseConfig = {
             apiKey: "AIzaSyAzEHo7pCqzORU2zmez_3cKhdOv8ol6c-g",
@@ -195,7 +196,6 @@
         };
         // =========================================================================
 
-        // Inicializa o Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         const docRef = db.collection("sistema").doc("bancoDeDados");
@@ -217,17 +217,14 @@
 
         // ---------- CONEXÃO EM TEMPO REAL COM A NUVEM ----------
         docRef.onSnapshot((doc) => {
-            const dot = document.getElementById('cloud-dot');
-            const text = document.getElementById('cloud-text');
-            
             if (doc.exists) {
                 appData = doc.data();
             } else {
-                docRef.set(appData);
+                docRef.set(appData); // Caso o banco seja apagado de novo, ele recria a base limpa.
             }
             
-            dot.classList.remove('loading');
-            text.textContent = 'Nuvem Sincronizada';
+            // ESCONDE A TELA DE CARREGAMENTO ASSIM QUE A NUVEM CHEGA
+            document.getElementById('global-loader').style.display = 'none';
             
             if (currentUser) {
                 renderProjects();
@@ -237,19 +234,11 @@
             }
         }, (error) => {
             console.error("Erro no Firebase:", error);
-            document.getElementById('cloud-dot').classList.add('loading');
-            document.getElementById('cloud-dot').style.background = 'var(--danger)';
-            document.getElementById('cloud-text').textContent = 'Erro de Conexão';
+            document.getElementById('global-loader').innerHTML = `<h2 style="color: red;">Erro de Conexão</h2><p>Falha ao conectar com o banco de dados.</p>`;
         });
 
         function saveData() { 
-            const text = document.getElementById('cloud-text');
-            text.textContent = 'Salvando...';
-            docRef.set(appData).then(() => {
-                text.textContent = 'Nuvem Sincronizada';
-            }).catch(err => {
-                console.error("Erro ao salvar:", err);
-            });
+            docRef.set(appData).catch(err => { console.error("Erro ao salvar:", err); });
         }
 
         // ---------- EVENTOS DE TECLADO (ENTER) ----------

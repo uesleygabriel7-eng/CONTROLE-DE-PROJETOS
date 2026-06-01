@@ -603,21 +603,34 @@
             if (projectList.length === 0) { doc.setTextColor(100, 100, 100); doc.text("Nenhum projeto encontrado para esta listagem.", 20, yOffset); } 
             else {
                 projectList.forEach((p) => {
-                    if (yOffset > 250) { doc.addPage(); yOffset = 20; }
                     const isImpeded = p.isImpeded; const isCompleted = p.stageIndex === 12;
-                    doc.setFillColor(249, 250, 251); doc.setDrawColor(229, 231, 235); doc.roundedRect(20, yOffset, 170, 28, 2, 2, 'FD');
+                    
+                    const realEvent = p.history.find(h => h.stage !== "📢 REGISTRO EXTRA"); 
+                    const obsToShow = realEvent ? realEvent.obs : "Sem observacao";
+                    doc.setFontSize(9); doc.setFont("helvetica", "italic");
+                    const splitObs = doc.splitTextToSize(`Obs: ${sanitizeForPDF(obsToShow)}`, 160);
+                    
+                    const cardHeight = 20 + (splitObs.length * 4.5); 
+                    
+                    if (yOffset + cardHeight > 280) { doc.addPage(); yOffset = 20; }
+                    
+                    doc.setFillColor(249, 250, 251); doc.setDrawColor(229, 231, 235); doc.roundedRect(20, yOffset, 170, cardHeight, 2, 2, 'FD');
+                    
                     let barColor = isCompleted ? [22, 163, 74] : (isImpeded ? [220, 38, 38] : [37, 99, 235]); 
-                    doc.setFillColor(barColor[0], barColor[1], barColor[2]); doc.rect(20, yOffset, 3, 28, 'F'); 
+                    doc.setFillColor(barColor[0], barColor[1], barColor[2]); doc.rect(20, yOffset, 3, cardHeight, 'F'); 
+                    
                     doc.setFontSize(12); doc.setTextColor(31, 41, 55); doc.setFont("helvetica", "bold"); doc.text(sanitizeForPDF(p.name), 28, yOffset + 8);
                     doc.setFontSize(9); doc.setTextColor(107, 114, 128); doc.setFont("helvetica", "bold"); doc.text(`Resp: ${sanitizeForPDF(p.owner)}`, 185, yOffset + 8, { align: 'right' });
+                    
                     doc.setFontSize(10); doc.setFont("helvetica", "bold");
                     if (isCompleted) { doc.setTextColor(22, 163, 74); doc.text("CONCLUIDO", 28, yOffset + 15); } 
                     else if (isImpeded) { doc.setTextColor(220, 38, 38); doc.text("AVISO: PAUSADO / IMPEDIDO", 28, yOffset + 15); } 
                     else { doc.setTextColor(37, 99, 235); doc.text(`ETAPA: ${sanitizeForPDF(STAGES[p.stageIndex]).toUpperCase()}`, 28, yOffset + 15); }
-                    const realEvent = p.history.find(h => h.stage !== "📢 REGISTRO EXTRA"); const obsToShow = realEvent ? realEvent.obs : "Sem observacao";
+                    
                     doc.setFontSize(9); doc.setFont("helvetica", "italic"); doc.setTextColor(107, 114, 128);
-                    const shortObs = sanitizeForPDF(obsToShow).substring(0, 110) + (obsToShow.length > 110 ? "..." : ""); doc.text(`Obs: ${shortObs}`, 28, yOffset + 22);
-                    yOffset += 34;
+                    doc.text(splitObs, 28, yOffset + 22);
+                    
+                    yOffset += cardHeight + 6;
                 });
             }
             doc.save(`Relatorio_${titleSuffix.replace(/\s+/g, '_')}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`);

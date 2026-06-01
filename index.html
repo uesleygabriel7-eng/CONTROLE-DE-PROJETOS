@@ -39,7 +39,7 @@
         .top-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
         .top-bar-actions { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
         .add-project-form { background: var(--card); padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; gap: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); align-items: center; }
-        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border); padding-bottom: 0; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border); padding-bottom: 0; flex-wrap: wrap;}
         .tab-btn { background: transparent; color: var(--text-light); border: none; font-size: 1.05rem; padding: 10px 20px; cursor: pointer; border-radius: 5px 5px 0 0; transition: 0.2s; margin-bottom: -2px; }
         .tab-btn.active { color: var(--primary); font-weight: bold; border-bottom: 3px solid var(--primary); }
         .tab-btn:hover:not(.active) { color: var(--text); background: var(--card); }
@@ -57,8 +57,8 @@
         .timeline-item { display: flex; flex-direction: column; padding: 8px 0; border-bottom: 1px dashed var(--border); }
         .timeline-item:last-child { border-bottom: none; }
         .timeline-top { display: flex; justify-content: space-between; font-weight: bold; align-items: center;}
-        .timeline-obs { color: #4b5563; margin-top: 4px; font-style: italic; display: flex; justify-content: space-between; align-items: center; }
-        .timeline-date { color: var(--text-light); font-weight: normal; font-size: 0.8rem; }
+        .timeline-obs { color: #4b5563; margin-top: 4px; font-style: italic; display: flex; justify-content: space-between; align-items: flex-end; }
+        .timeline-date { color: var(--text-light); font-weight: normal; font-size: 0.8rem; white-space: nowrap; margin-left: 10px; }
         .timeline-actions { display: flex; gap: 5px; }
         .actions { margin-top: 15px; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
         .actions button { flex: 1; min-width: 80px; padding: 6px; font-size: 0.85rem;}
@@ -93,6 +93,19 @@
             <div class="modal-buttons">
                 <button class="secondary" onclick="closeModal(false)">Cancelar</button>
                 <button onclick="closeModal(true)">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="transfer-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 class="modal-title">🔄 Transferir Projeto</h3>
+            <p class="modal-desc">Selecione o colega que vai assumir este projeto a partir de agora:</p>
+            <select id="transfer-user-select" style="margin-bottom: 15px;"></select>
+            <textarea id="transfer-obs-input" rows="3" placeholder="Motivo da transferência (Opcional)..."></textarea>
+            <div class="modal-buttons">
+                <button class="secondary" onclick="closeTransferModal(false)">Cancelar</button>
+                <button class="warning" onclick="closeTransferModal(true)">Confirmar Transferência</button>
             </div>
         </div>
     </div>
@@ -170,6 +183,7 @@
 
             <div class="tabs" style="margin-bottom: 20px;">
                 <button id="tab-draftsman-andamento" class="tab-btn active" onclick="switchDraftsmanTab('andamento')">Em Andamento</button>
+                <button id="tab-draftsman-transferidos" class="tab-btn" onclick="switchDraftsmanTab('transferidos')">Transferidos</button>
                 <button id="tab-draftsman-concluidos" class="tab-btn" onclick="switchDraftsmanTab('concluidos')">Concluídos</button>
             </div>
 
@@ -184,7 +198,7 @@
 
     <script>
         // =========================================================================
-        // SUAS CHAVES DO FIREBASE INSERIDAS AQUI
+        // SUAS CHAVES DO FIREBASE
         // =========================================================================
         const firebaseConfig = {
             apiKey: "AIzaSyAzEHo7pCqzORU2zmez_3cKhdOv8ol6c-g",
@@ -214,16 +228,16 @@
         let draftsmanCurrentTab = 'andamento'; 
 
         let modalResolve = null, confirmResolve = null, passwordResolve = null;
+        let transferProjectId = null; // Armazena temporariamente o ID ao transferir
 
         // ---------- CONEXÃO EM TEMPO REAL COM A NUVEM ----------
         docRef.onSnapshot((doc) => {
             if (doc.exists) {
                 appData = doc.data();
             } else {
-                docRef.set(appData); // Caso o banco seja apagado de novo, ele recria a base limpa.
+                docRef.set(appData);
             }
             
-            // ESCONDE A TELA DE CARREGAMENTO ASSIM QUE A NUVEM CHEGA
             document.getElementById('global-loader').style.display = 'none';
             
             if (currentUser) {
@@ -289,6 +303,61 @@
         function closeConfirmModal(isConfirmed) {
             document.getElementById('confirm-modal').classList.add('hidden');
             if (confirmResolve) { confirmResolve(isConfirmed); confirmResolve = null; }
+        }
+
+        // ---------- SISTEMA DE TRANSFERÊNCIA DE PROJETOS ----------
+        function openTransferModal(projectId) {
+            transferProjectId = projectId;
+            const select = document.getElementById('transfer-user-select');
+            select.innerHTML = '';
+            
+            // Popula o select só com os colegas (não aparece o próprio usuário)
+            appData.users.forEach(u => {
+                if (u !== currentUser) {
+                    const opt = document.createElement('option');
+                    opt.value = u; opt.textContent = u;
+                    select.appendChild(opt);
+                }
+            });
+            
+            if(select.options.length === 0) {
+                openConfirmModal("Aviso", "Não há outros desenhistas cadastrados para receber.", true);
+                return;
+            }
+
+            document.getElementById('transfer-obs-input').value = '';
+            document.getElementById('transfer-modal').classList.remove('hidden');
+        }
+
+        function closeTransferModal(isConfirmed) {
+            document.getElementById('transfer-modal').classList.add('hidden');
+            if (isConfirmed && transferProjectId) {
+                const selectedUser = document.getElementById('transfer-user-select').value;
+                const obs = document.getElementById('transfer-obs-input').value;
+                
+                const project = appData.projects.find(p => p.id === transferProjectId);
+                
+                // Grava o usuário atual na lista de ex-donos (para aparecer na aba Transferidos dele)
+                if (!project.previousOwners) project.previousOwners = [];
+                if (!project.previousOwners.includes(currentUser)) {
+                    project.previousOwners.push(currentUser);
+                }
+                
+                const oldOwner = project.owner;
+                project.owner = selectedUser; // Passagem de bastão
+                
+                // Adiciona o log assinado por quem transferiu
+                project.history.unshift({ 
+                    stage: "📢 PROJETO TRANSFERIDO", 
+                    obs: `De ${oldOwner} para ${selectedUser}. Motivo: ${obs || 'Sem observação'}`, 
+                    date: new Date().toLocaleString('pt-BR'),
+                    author: currentUser // <- Assinatura de Autoria
+                });
+                
+                saveData();
+                switchDraftsmanTab('transferidos'); // Vai direto ver o projeto na nova aba
+            }
+            transferProjectId = null;
         }
 
         function sanitizeForPDF(text) {
@@ -357,8 +426,8 @@
                 const obs = await openModal("Novo Projeto na Fila", `Adicionando à etapa: "${STAGES[0]}"`, "Por que não vai iniciar agora?");
                 if (obs !== null) {
                     const newProject = {
-                        id: Date.now().toString(), owner: currentUser, name: name, stageIndex: 0, isImpeded: false,
-                        history: [{ stage: STAGES[0], obs: obs || "Sem observação", date: new Date().toLocaleString('pt-BR') }]
+                        id: Date.now().toString(), owner: currentUser, name: name, stageIndex: 0, isImpeded: false, previousOwners: [],
+                        history: [{ stage: STAGES[0], obs: obs || "Sem observação", date: new Date().toLocaleString('pt-BR'), author: currentUser }] // Assinatura adicionada
                     };
                     appData.projects.unshift(newProject); saveData(); 
                     switchDraftsmanTab('andamento'); input.value = '';
@@ -384,7 +453,7 @@
                 if (obs === null) selectElement.value = project.stageIndex;
                 else {
                     project.stageIndex = newIndex;
-                    project.history.unshift({ stage: STAGES[newIndex], obs: obs || "Sem observação", date: new Date().toLocaleString('pt-BR') });
+                    project.history.unshift({ stage: STAGES[newIndex], obs: obs || "Sem observação", date: new Date().toLocaleString('pt-BR'), author: currentUser }); // Assinatura adicionada
                     saveData();
                 }
             }
@@ -394,7 +463,7 @@
             const project = appData.projects.find(p => p.id === id);
             const obs = await openModal("Registrar Acontecimento", "O que ocorreu com esse projeto?", "Ex: Cliente pediu alteração extra...");
             if (obs !== null && obs.trim() !== "") {
-                project.history.unshift({ stage: "📢 REGISTRO EXTRA", obs: obs, date: new Date().toLocaleString('pt-BR') });
+                project.history.unshift({ stage: "📢 REGISTRO EXTRA", obs: obs, date: new Date().toLocaleString('pt-BR'), author: currentUser }); // Assinatura adicionada
                 saveData();
             }
         }
@@ -411,10 +480,10 @@
             if (confirm) {
                 project.history.splice(historyIndex, 1);
                 if (project.history.length === 0) {
-                    project.history.push({ stage: STAGES[0], obs: "Histórico reiniciado", date: new Date().toLocaleString('pt-BR') });
+                    project.history.push({ stage: STAGES[0], obs: "Histórico reiniciado", date: new Date().toLocaleString('pt-BR'), author: currentUser });
                     project.stageIndex = 0;
                 } else {
-                    const firstRealStage = project.history.find(h => h.stage !== "📢 REGISTRO EXTRA" && h.stage !== "🔴 IMPEDIMENTO / PAUSADO" && h.stage !== "🟢 Retomado após Impedimento");
+                    const firstRealStage = project.history.find(h => h.stage !== "📢 REGISTRO EXTRA" && h.stage !== "🔴 IMPEDIMENTO / PAUSADO" && h.stage !== "🟢 Retomado após Impedimento" && h.stage !== "📢 PROJETO TRANSFERIDO");
                     if (firstRealStage) project.stageIndex = STAGES.indexOf(firstRealStage.stage) !== -1 ? STAGES.indexOf(firstRealStage.stage) : project.stageIndex;
                 }
                 saveData();
@@ -427,14 +496,14 @@
                 const obs = await openModal("Retomar Projeto", "O impedimento foi resolvido?", "Descreva a solução...");
                 if (obs !== null) {
                     project.isImpeded = false;
-                    project.history.unshift({ stage: "🟢 Retomado após Impedimento", obs: obs || "Impedimento solucionado", date: new Date().toLocaleString('pt-BR') });
+                    project.history.unshift({ stage: "🟢 Retomado após Impedimento", obs: obs || "Impedimento solucionado", date: new Date().toLocaleString('pt-BR'), author: currentUser });
                     saveData();
                 }
             } else {
                 const obs = await openModal("Registrar Impedimento", "O projeto está travado?", "Motivo do impedimento (Obrigatório)");
                 if (obs !== null && obs.trim() !== "") {
                     project.isImpeded = true;
-                    project.history.unshift({ stage: "🔴 IMPEDIMENTO / PAUSADO", obs: obs, date: new Date().toLocaleString('pt-BR') });
+                    project.history.unshift({ stage: "🔴 IMPEDIMENTO / PAUSADO", obs: obs, date: new Date().toLocaleString('pt-BR'), author: currentUser });
                     saveData();
                 } else if (obs !== null) openConfirmModal("Atenção", "Para pausar, informe o motivo!", true);
             }
@@ -474,12 +543,13 @@
 
                 let historyHtml = '';
                 project.history.forEach((item) => {
-                    historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${item.stage === '📢 REGISTRO EXTRA' ? 'color: #9333ea;' : ''}">${item.stage}</span></div><div class="timeline-obs"><span>↳ Obs: ${item.obs}</span><span class="timeline-date">${item.date}</span></div></div>`;
+                    const authorName = item.author ? item.author : project.owner; // Fallback para projetos velhos
+                    historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${item.stage === '📢 REGISTRO EXTRA' ? 'color: #9333ea;' : ''}">${item.stage}</span></div><div class="timeline-obs"><span>↳ Obs: ${item.obs} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span><span class="timeline-date">${item.date}</span></div></div>`;
                 });
 
                 card.innerHTML = `
                     <div class="project-header">
-                        <span class="draftsman-badge">👤 Desenhista: ${project.owner}</span>
+                        <span class="draftsman-badge">👤 Atual: ${project.owner}</span>
                         <h2 style="font-size: 1.2rem; margin-bottom: 5px;">${project.name}</h2>
                         <div style="font-weight: bold; color: ${isCompleted ? 'var(--success)' : (project.isImpeded ? 'var(--danger)' : 'var(--primary)')}; margin-top: 10px;">
                             ${project.isImpeded ? '⚠️ PAUSADO / IMPEDIDO' : (isCompleted ? '✅ CONCLUÍDO' : '▶ ' + STAGES[project.stageIndex])}
@@ -499,6 +569,7 @@
         function switchDraftsmanTab(tab) {
             draftsmanCurrentTab = tab;
             document.getElementById('tab-draftsman-andamento').classList.toggle('active', tab === 'andamento');
+            document.getElementById('tab-draftsman-transferidos').classList.toggle('active', tab === 'transferidos');
             document.getElementById('tab-draftsman-concluidos').classList.toggle('active', tab === 'concluidos');
             renderProjects();
         }
@@ -509,44 +580,82 @@
             if(!appData.projects) return;
 
             const searchTerm = document.getElementById('search-input').value.toLowerCase();
-            let userProjects = appData.projects.filter(p => p.owner === currentUser);
-            userProjects = userProjects.filter(p => draftsmanCurrentTab === 'andamento' ? p.stageIndex !== 12 : p.stageIndex === 12);
+            
+            // LÓGICA DE FILTRAGEM (INCLUINDO TRANSFERÊNCIAS)
+            let userProjects = appData.projects.filter(p => {
+                const isOwner = p.owner === currentUser;
+                const isPreviousOwner = p.previousOwners && p.previousOwners.includes(currentUser);
+                
+                if (draftsmanCurrentTab === 'andamento') {
+                    return isOwner && p.stageIndex !== 12;
+                } else if (draftsmanCurrentTab === 'transferidos') {
+                    // Aparece se ele já tocou na obra, não é mais o dono atual, e ainda não acabou
+                    return isPreviousOwner && !isOwner && p.stageIndex !== 12;
+                } else if (draftsmanCurrentTab === 'concluidos') {
+                    // Se a obra acabou e ele é o dono ou já tocou nela antes, aparece em Concluídos
+                    return (isOwner || isPreviousOwner) && p.stageIndex === 12;
+                }
+                return false;
+            });
+            
             userProjects = userProjects.filter(p => p.name.toLowerCase().includes(searchTerm));
 
             if (userProjects.length === 0) {
                 container.style.display = 'block';
-                container.innerHTML = searchTerm ? '<p style="text-align:center; color:gray; margin-top: 50px;">Nenhum projeto encontrado.</p>' : `<p style="text-align:center; color:gray; font-size: 1.1rem; margin-top: 50px;">Nenhum projeto ${draftsmanCurrentTab === 'andamento' ? 'em andamento' : 'concluído'}.</p>`;
+                let txt = 'Nenhum projeto ';
+                if(draftsmanCurrentTab === 'andamento') txt += 'em andamento.';
+                if(draftsmanCurrentTab === 'transferidos') txt += 'transferido ou aguardando conclusão de terceiros.';
+                if(draftsmanCurrentTab === 'concluidos') txt += 'concluído.';
+                
+                container.innerHTML = searchTerm ? '<p style="text-align:center; color:gray; margin-top: 50px;">Nenhum projeto encontrado na busca.</p>' : `<p style="text-align:center; color:gray; font-size: 1.1rem; margin-top: 50px;">${txt}</p>`;
                 return;
             } else container.style.display = 'grid';
 
             userProjects.forEach(project => {
                 const isCompleted = project.stageIndex === 12;
+                const isOwner = project.owner === currentUser; // Verifica se é o dono atual ou só um ex-dono espiando
+                
                 const cardClass = isCompleted ? 'completed' : (project.isImpeded ? 'impediment' : '');
                 const card = document.createElement('div'); card.className = `project-card ${cardClass}`;
                 const progressPercent = Math.round((project.stageIndex / (STAGES.length - 1)) * 100);
 
                 let optionsHtml = ''; STAGES.forEach((stage, idx) => { optionsHtml += `<option value="${idx}" ${idx === project.stageIndex ? 'selected' : ''}>${idx + 1}. ${stage}</option>`; });
+                
                 let historyHtml = '';
                 project.history.forEach((item, index) => {
-                    historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${item.stage === '📢 REGISTRO EXTRA' ? 'color: #9333ea;' : ''}">${item.stage}</span><div class="timeline-actions"><button class="icon-btn" onclick="editHistoryItem('${project.id}', ${index})" title="Editar Observação">✏️</button><button class="icon-btn" onclick="deleteHistoryItem('${project.id}', ${index})" title="Apagar Etapa/Registro">🗑️</button></div></div><div class="timeline-obs"><span>↳ Obs: ${item.obs}</span><span class="timeline-date">${item.date}</span></div></div>`;
+                    const authorName = item.author ? item.author : project.owner;
+                    // Só mostra botão de editar/excluir etapa se o cara ainda for o dono do projeto
+                    const editBtns = isOwner ? `<button class="icon-btn" onclick="editHistoryItem('${project.id}', ${index})" title="Editar Observação">✏️</button><button class="icon-btn" onclick="deleteHistoryItem('${project.id}', ${index})" title="Apagar Etapa/Registro">🗑️</button>` : '';
+                    
+                    historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${item.stage === '📢 REGISTRO EXTRA' ? 'color: #9333ea;' : ''}">${item.stage}</span><div class="timeline-actions">${editBtns}</div></div><div class="timeline-obs"><span>↳ Obs: ${item.obs} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span><span class="timeline-date">${item.date}</span></div></div>`;
                 });
+
+                // Se não for dono (está espiando na aba Transferidos), bloqueia o select
+                const disabledSelect = (project.isImpeded || !isOwner) ? 'disabled' : '';
+                
+                // Botões de ação principais: Só mostra se for o dono atual
+                const mainActionBtns = isOwner ? `
+                    <button class="secondary" onclick="registerEvent('${project.id}')" title="Registrar Acontecimento">📝 Fato</button>
+                    <button class="warning" onclick="openTransferModal('${project.id}')" style="background:#8b5cf6; color:white;">🔄 Transferir</button>
+                    <button class="${project.isImpeded ? 'success' : 'warning'}" onclick="toggleImpediment('${project.id}')">${project.isImpeded ? '▶ Retomar' : '⏸ Pausar'}</button>
+                    <button class="danger" onclick="deleteProject('${project.id}')">Excluir</button>
+                ` : '';
 
                 card.innerHTML = `
                     <div class="project-header">
                         <div class="project-title-container">
                             <h2>${project.name}</h2>
-                            <button class="icon-btn" onclick="editProjectName('${project.id}')" title="Editar Nome" style="font-size: 1.2rem; margin-top: -2px;">✏️</button>
+                            ${isOwner ? `<button class="icon-btn" onclick="editProjectName('${project.id}')" title="Editar Nome" style="font-size: 1.2rem; margin-top: -2px;">✏️</button>` : ''}
                         </div>
-                        <select onchange="updateStage('${project.id}', this)" ${project.isImpeded ? 'disabled' : ''}>${optionsHtml}</select>
+                        <div style="font-size: 0.85rem; color: #4b5563; margin-bottom: 10px;">👤 Responsável Atual: <b>${project.owner}</b></div>
+                        <select onchange="updateStage('${project.id}', this)" ${disabledSelect}>${optionsHtml}</select>
                     </div>
                     <div class="progress-container"><div class="progress-bar" style="width: ${progressPercent}%; background-color: ${isCompleted ? 'var(--success)' : (project.isImpeded ? 'var(--warning)' : 'var(--primary)')}"></div></div>
                     <p style="text-align: right; margin-top: 5px; font-size: 0.85rem; color: #6b7280; margin-bottom: 0;">Progresso: ${progressPercent}%</p>
                     <div class="timeline"><strong>Histórico e Observações:</strong><br>${historyHtml}</div>
                     <div class="actions">
-                        <button class="secondary" onclick="registerEvent('${project.id}')" title="Registrar Acontecimento">📝 Fato</button>
+                        ${mainActionBtns}
                         <button class="info" onclick="exportReportPDF('${project.id}')">📄 PDF</button>
-                        <button class="${project.isImpeded ? 'success' : 'warning'}" onclick="toggleImpediment('${project.id}')">${project.isImpeded ? '▶ Retomar' : '⏸ Pausar'}</button>
-                        <button class="danger" onclick="deleteProject('${project.id}')">Excluir</button>
                     </div>`;
                 container.appendChild(card);
             });
@@ -569,11 +678,17 @@
                 if (yOffset > 270) { doc.addPage(); yOffset = 20; }
                 const stepNum = project.history.length - index;
                 doc.setFontSize(11); doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold");
-                if(item.stage === "📢 REGISTRO EXTRA") doc.setTextColor(147, 51, 234); 
+                if(item.stage === "📢 REGISTRO EXTRA" || item.stage === "📢 PROJETO TRANSFERIDO") doc.setTextColor(147, 51, 234); 
+                
                 doc.text(`${stepNum}. ${sanitizeForPDF(item.stage)}`, 20, yOffset);
                 doc.setFontSize(9); doc.setTextColor(150, 150, 150); doc.setFont("helvetica", "normal"); doc.text(item.date, 190, yOffset, { align: "right" });
                 yOffset += 4;
-                const splitObs = doc.splitTextToSize(sanitizeForPDF(item.obs), 160); const boxHeight = (splitObs.length * 5) + 6;
+                
+                // Inclusão da Assinatura no PDF
+                const authorText = item.author ? ` [Resp: ${sanitizeForPDF(item.author)}]` : "";
+                const splitObs = doc.splitTextToSize(`Obs: ${sanitizeForPDF(item.obs)}${authorText}`, 160); 
+                
+                const boxHeight = (splitObs.length * 5) + 6;
                 doc.setFillColor(248, 249, 250); doc.roundedRect(20, yOffset, 170, boxHeight, 2, 2, 'F');
                 doc.setFontSize(10); doc.setTextColor(75, 85, 99); doc.setFont("helvetica", "italic"); doc.text(splitObs, 25, yOffset + 6);
                 yOffset += boxHeight + 10;
@@ -583,8 +698,16 @@
 
         function exportDraftsmanReport() { 
             const isAndamento = draftsmanCurrentTab === 'andamento';
-            const projectList = appData.projects.filter(p => p.owner === currentUser && (isAndamento ? p.stageIndex !== 12 : p.stageIndex === 12));
-            generateListPDF(projectList, `Projetos ${sanitizeForPDF(currentUser)} - ${isAndamento ? "Em Andamento" : "Concluidos"}`); 
+            
+            let projectList = appData.projects.filter(p => {
+                const isOwner = p.owner === currentUser;
+                const isPreviousOwner = p.previousOwners && p.previousOwners.includes(currentUser);
+                if (draftsmanCurrentTab === 'andamento') return isOwner && p.stageIndex !== 12;
+                if (draftsmanCurrentTab === 'transferidos') return isPreviousOwner && !isOwner && p.stageIndex !== 12;
+                if (draftsmanCurrentTab === 'concluidos') return (isOwner || isPreviousOwner) && p.stageIndex === 12;
+            });
+
+            generateListPDF(projectList, `Projetos ${sanitizeForPDF(currentUser)} - ${draftsmanCurrentTab.toUpperCase()}`); 
         }
         
         function exportManagerReport() { 
@@ -605,7 +728,7 @@
                 projectList.forEach((p) => {
                     const isImpeded = p.isImpeded; const isCompleted = p.stageIndex === 12;
                     
-                    const realEvent = p.history.find(h => h.stage !== "📢 REGISTRO EXTRA"); 
+                    const realEvent = p.history.find(h => h.stage !== "📢 REGISTRO EXTRA" && h.stage !== "📢 PROJETO TRANSFERIDO"); 
                     const obsToShow = realEvent ? realEvent.obs : "Sem observacao";
                     doc.setFontSize(9); doc.setFont("helvetica", "italic");
                     const splitObs = doc.splitTextToSize(`Obs: ${sanitizeForPDF(obsToShow)}`, 160);

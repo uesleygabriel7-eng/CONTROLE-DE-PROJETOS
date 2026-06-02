@@ -8,6 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
         :root {
@@ -63,18 +64,19 @@
         .actions { margin-top: 15px; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
         .actions button { flex: 1; min-width: 80px; padding: 6px; font-size: 0.85rem;}
         
-        /* TELA DE CARREGAMENTO (TRAVA DE SEGURANÇA) */
         #global-loader { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg); z-index: 99999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         .spinner { border: 5px solid var(--border); border-top: 5px solid var(--primary); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 20px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
-        /* Modais */
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--modal-bg); display: flex; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(4px); }
         .modal-content { background-color: var(--card); padding: 25px; border-radius: 12px; width: 90%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: modalFadeIn 0.2s ease; }
         @keyframes modalFadeIn { from { opacity: 0; transform: translateY(-20px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
         .modal-title { margin-top: 0; color: var(--primary); font-size: 1.3rem;}
         .modal-desc { margin-bottom: 15px; color: var(--text-light); font-size: 0.95rem; line-height: 1.4;}
         .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;}
+        
+        /* Gráficos */
+        .chart-container { background: var(--card); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-top: 20px; height: 500px; }
     </style>
 </head>
 <body>
@@ -134,6 +136,7 @@
     </div>
 
     <div class="container">
+        <!-- TELA DO GESTOR -->
         <div id="view-profiles">
             <div class="header">
                 <h1>👥 Selecionar Desenhista</h1>
@@ -152,9 +155,9 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                     <div style="text-align: left;">
                         <h2 style="margin: 0; color: #111827; display: flex; align-items: center; gap: 8px;">👔 Status Geral Projetos</h2>
-                        <p style="margin: 5px 0 0 0; color: var(--text-light); font-size: 0.9rem;">Acompanhamento corporativo em tempo real.</p>
+                        <p style="margin: 5px 0 0 0; color: var(--text-light); font-size: 0.9rem;">Acompanhamento corporativo em tempo real e análise de gargalos.</p>
                     </div>
-                    <div class="top-bar-actions">
+                    <div class="top-bar-actions" id="manager-actions">
                         <div class="search-bar"><input type="text" id="manager-search-input" onkeyup="renderGlobalFeed()" placeholder="🔍 Buscar projeto..."></div>
                         <button class="manager-btn" onclick="exportManagerReport()">📊 PDF da Aba Atual</button>
                     </div>
@@ -164,11 +167,27 @@
             <div class="tabs">
                 <button id="tab-andamento" class="tab-btn active" onclick="switchManagerTab('andamento')">Em Andamento</button>
                 <button id="tab-concluidos" class="tab-btn" onclick="switchManagerTab('concluidos')">Concluídos</button>
+                <button id="tab-graficos" class="tab-btn" onclick="switchManagerTab('graficos')">📊 Gráficos (Pareto)</button>
             </div>
             
             <div class="projects-list" id="global-feed-container"></div>
+            
+            <!-- TELA DE GRÁFICOS -->
+            <div id="view-graphics" class="hidden">
+                <div style="background: var(--card); padding: 15px; border-radius: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <strong style="white-space: nowrap;">Analisar:</strong>
+                    <select id="graph-filter-select" onchange="renderGraph()" style="margin-bottom: 0; max-width: 400px;">
+                        <option value="ALL">Geral (Todos os Projetos do Sistema)</option>
+                        <!-- Options populados via JS -->
+                    </select>
+                </div>
+                <div class="chart-container">
+                    <canvas id="paretoChart"></canvas>
+                </div>
+            </div>
         </div>
 
+        <!-- TELA DO DESENHISTA -->
         <div id="view-dashboard" class="hidden">
             <div class="header" style="margin-bottom: 5px;">
                 <div class="top-bar">
@@ -197,9 +216,6 @@
     </div>
 
     <script>
-        // =========================================================================
-        // SUAS CHAVES DO FIREBASE
-        // =========================================================================
         const firebaseConfig = {
             apiKey: "AIzaSyAzEHo7pCqzORU2zmez_3cKhdOv8ol6c-g",
             authDomain: "controle-de-projetos-a8bae.firebaseapp.com",
@@ -208,7 +224,6 @@
             messagingSenderId: "729227598528",
             appId: "1:729227598528:web:2b004fc426588d00976b25"
         };
-        // =========================================================================
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
@@ -226,11 +241,12 @@
         let currentUser = null;
         let managerCurrentTab = 'andamento';
         let draftsmanCurrentTab = 'andamento'; 
+        let currentChart = null; 
 
         let modalResolve = null, confirmResolve = null, passwordResolve = null;
-        let transferProjectId = null; // Armazena temporariamente o ID ao transferir
+        let transferProjectId = null; 
 
-        // ---------- CONEXÃO EM TEMPO REAL COM A NUVEM ----------
+        // ---------- CONEXÃO EM TEMPO REAL ----------
         docRef.onSnapshot((doc) => {
             if (doc.exists) {
                 appData = doc.data();
@@ -244,7 +260,12 @@
                 renderProjects();
             } else {
                 renderProfiles();
-                renderGlobalFeed();
+                if(managerCurrentTab === 'graficos'){
+                    populateGraphSelect();
+                    renderGraph();
+                } else {
+                    renderGlobalFeed();
+                }
             }
         }, (error) => {
             console.error("Erro no Firebase:", error);
@@ -255,7 +276,7 @@
             docRef.set(appData).catch(err => { console.error("Erro ao salvar:", err); });
         }
 
-        // ---------- EVENTOS DE TECLADO (ENTER) ----------
+        // ---------- EVENTOS DE TECLADO ----------
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('modal-input').addEventListener('keydown', function(e) {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); closeModal(true); }
@@ -305,13 +326,11 @@
             if (confirmResolve) { confirmResolve(isConfirmed); confirmResolve = null; }
         }
 
-        // ---------- SISTEMA DE TRANSFERÊNCIA DE PROJETOS ----------
+        // ---------- SISTEMA DE TRANSFERÊNCIA ----------
         function openTransferModal(projectId) {
             transferProjectId = projectId;
             const select = document.getElementById('transfer-user-select');
             select.innerHTML = '';
-            
-            // Popula o select só com os colegas (não aparece o próprio usuário)
             appData.users.forEach(u => {
                 if (u !== currentUser) {
                     const opt = document.createElement('option');
@@ -319,12 +338,10 @@
                     select.appendChild(opt);
                 }
             });
-            
             if(select.options.length === 0) {
                 openConfirmModal("Aviso", "Não há outros desenhistas cadastrados para receber.", true);
                 return;
             }
-
             document.getElementById('transfer-obs-input').value = '';
             document.getElementById('transfer-modal').classList.remove('hidden');
         }
@@ -334,28 +351,22 @@
             if (isConfirmed && transferProjectId) {
                 const selectedUser = document.getElementById('transfer-user-select').value;
                 const obs = document.getElementById('transfer-obs-input').value;
-                
                 const project = appData.projects.find(p => p.id === transferProjectId);
                 
-                // Grava o usuário atual na lista de ex-donos (para aparecer na aba Transferidos dele)
                 if (!project.previousOwners) project.previousOwners = [];
-                if (!project.previousOwners.includes(currentUser)) {
-                    project.previousOwners.push(currentUser);
-                }
+                if (!project.previousOwners.includes(currentUser)) project.previousOwners.push(currentUser);
                 
                 const oldOwner = project.owner;
-                project.owner = selectedUser; // Passagem de bastão
+                project.owner = selectedUser;
                 
-                // Adiciona o log assinado por quem transferiu
                 project.history.unshift({ 
                     stage: "📢 PROJETO TRANSFERIDO", 
                     obs: `De ${oldOwner} para ${selectedUser}. Motivo: ${obs || 'Sem observação'}`, 
                     date: new Date().toLocaleString('pt-BR'),
-                    author: currentUser // <- Assinatura de Autoria
+                    author: currentUser
                 });
-                
                 saveData();
-                switchDraftsmanTab('transferidos'); // Vai direto ver o projeto na nova aba
+                switchDraftsmanTab('transferidos'); 
             }
             transferProjectId = null;
         }
@@ -416,7 +427,11 @@
             currentUser = null;
             document.getElementById('view-dashboard').classList.add('hidden');
             document.getElementById('view-profiles').classList.remove('hidden');
-            renderGlobalFeed();
+            if(managerCurrentTab === 'graficos'){
+                switchManagerTab('andamento'); 
+            } else {
+                renderGlobalFeed();
+            }
         }
 
         // ---------- FUNÇÕES DO DESENHISTA ----------
@@ -427,7 +442,7 @@
                 if (obs !== null) {
                     const newProject = {
                         id: Date.now().toString(), owner: currentUser, name: name, stageIndex: 0, isImpeded: false, previousOwners: [],
-                        history: [{ stage: STAGES[0], obs: obs || "Sem observação", date: new Date().toLocaleString('pt-BR'), author: currentUser }] // Assinatura adicionada
+                        history: [{ stage: STAGES[0], obs: obs || "Sem observação", date: new Date().toLocaleString('pt-BR'), author: currentUser }] 
                     };
                     appData.projects.unshift(newProject); saveData(); 
                     switchDraftsmanTab('andamento'); input.value = '';
@@ -453,7 +468,7 @@
                 if (obs === null) selectElement.value = project.stageIndex;
                 else {
                     project.stageIndex = newIndex;
-                    project.history.unshift({ stage: STAGES[newIndex], obs: obs || "Sem observação", date: new Date().toLocaleString('pt-BR'), author: currentUser }); // Assinatura adicionada
+                    project.history.unshift({ stage: STAGES[newIndex], obs: obs || "Sem observação", date: new Date().toLocaleString('pt-BR'), author: currentUser });
                     saveData();
                 }
             }
@@ -463,7 +478,7 @@
             const project = appData.projects.find(p => p.id === id);
             const obs = await openModal("Registrar Acontecimento", "O que ocorreu com esse projeto?", "Ex: Cliente pediu alteração extra...");
             if (obs !== null && obs.trim() !== "") {
-                project.history.unshift({ stage: "📢 REGISTRO EXTRA", obs: obs, date: new Date().toLocaleString('pt-BR'), author: currentUser }); // Assinatura adicionada
+                project.history.unshift({ stage: "📢 REGISTRO EXTRA", obs: obs, date: new Date().toLocaleString('pt-BR'), author: currentUser });
                 saveData();
             }
         }
@@ -514,7 +529,20 @@
             managerCurrentTab = tab;
             document.getElementById('tab-andamento').classList.toggle('active', tab === 'andamento');
             document.getElementById('tab-concluidos').classList.toggle('active', tab === 'concluidos');
-            renderGlobalFeed();
+            document.getElementById('tab-graficos').classList.toggle('active', tab === 'graficos');
+            
+            if(tab === 'graficos'){
+                document.getElementById('global-feed-container').classList.add('hidden');
+                document.getElementById('manager-actions').classList.add('hidden');
+                document.getElementById('view-graphics').classList.remove('hidden');
+                populateGraphSelect();
+                renderGraph();
+            } else {
+                document.getElementById('view-graphics').classList.add('hidden');
+                document.getElementById('manager-actions').classList.remove('hidden');
+                document.getElementById('global-feed-container').classList.remove('hidden');
+                renderGlobalFeed();
+            }
         }
 
         function renderGlobalFeed() {
@@ -543,7 +571,7 @@
 
                 let historyHtml = '';
                 project.history.forEach((item) => {
-                    const authorName = item.author ? item.author : project.owner; // Fallback para projetos velhos
+                    const authorName = item.author ? item.author : project.owner; 
                     historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${item.stage === '📢 REGISTRO EXTRA' ? 'color: #9333ea;' : ''}">${item.stage}</span></div><div class="timeline-obs"><span>↳ Obs: ${item.obs} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span><span class="timeline-date">${item.date}</span></div></div>`;
                 });
 
@@ -559,9 +587,154 @@
                     <p style="text-align: right; margin-top: 5px; font-size: 0.85rem; color: #6b7280; margin-bottom: 0;">Progresso: ${progressPercent}%</p>
                     <div class="timeline"><strong>Histórico e Observações:</strong><br>${historyHtml}</div>
                     <div class="actions" style="margin-top: 15px; display: flex; justify-content: flex-end;">
-                        <button class="info" onclick="exportReportPDF('${project.id}')" style="width: auto; padding: 8px 15px;">📄 PDF Individual</button>
+                        <button class="info" onclick="exportReportPDF('${project.id}')" style="width: auto; padding: 8px 15px;">📄 Preview PDF</button>
                     </div>`;
                 container.appendChild(card);
+            });
+        }
+
+        // ---------- LÓGICA DE GRÁFICOS E TEMPO (PARETO) ----------
+        function parseDateBR(dateStr) {
+            try {
+                const parts = dateStr.split(/[\s,]+/);
+                const d = parts[0].split('/');
+                const t = parts.length > 1 ? parts[1].split(':') : ['00','00','00'];
+                return new Date(d[2], d[1] - 1, d[0], t[0]||0, t[1]||0, t[2]||0);
+            } catch(e) {
+                return new Date();
+            }
+        }
+
+        function populateGraphSelect() {
+            const select = document.getElementById('graph-filter-select');
+            select.innerHTML = '<option value="ALL">Geral (Todos os Projetos do Sistema)</option>';
+            appData.projects.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id; 
+                opt.textContent = `${p.name} (${p.owner})`;
+                select.appendChild(opt);
+            });
+        }
+
+        function renderGraph() {
+            const selectVal = document.getElementById('graph-filter-select').value;
+            let projectsToAnalyze = selectVal === "ALL" ? appData.projects : appData.projects.filter(p => p.id === selectVal);
+            
+            let timeAcc = {};
+            STAGES.forEach(s => timeAcc[s] = 0);
+            timeAcc["Pausado / Impedido"] = 0;
+
+            projectsToAnalyze.forEach(p => {
+                let sortedHistory = [...p.history].reverse(); 
+                let currentStatus = null; 
+                let currentRealStage = null;
+                let lastTimestamp = null;
+
+                sortedHistory.forEach(event => {
+                    let eventTime = parseDateBR(event.date).getTime();
+                    
+                    if (currentStatus && lastTimestamp) {
+                        timeAcc[currentStatus] += Math.max(0, eventTime - lastTimestamp);
+                    }
+
+                    if (STAGES.includes(event.stage)) {
+                        currentStatus = event.stage;
+                        currentRealStage = event.stage;
+                    } else if (event.stage === "🔴 IMPEDIMENTO / PAUSADO") {
+                        currentStatus = "Pausado / Impedido";
+                    } else if (event.stage === "🟢 Retomado após Impedimento" || event.stage === "📢 PROJETO TRANSFERIDO") {
+                        currentStatus = currentRealStage || STAGES[0];
+                    }
+                    
+                    lastTimestamp = eventTime;
+                });
+
+                if (p.stageIndex !== 12 && lastTimestamp && currentStatus) {
+                    timeAcc[currentStatus] += Math.max(0, new Date().getTime() - lastTimestamp);
+                }
+            });
+
+            let formattedData = [];
+            for (let stage in timeAcc) {
+                let hours = timeAcc[stage] / (1000 * 60 * 60);
+                if (hours > 0.01) formattedData.push({ stage: stage, hours: hours });
+            }
+            formattedData.sort((a, b) => b.hours - a.hours);
+
+            let labels = [];
+            let barValues = [];
+            let lineValues = [];
+            let cumulative = 0;
+            let totalHours = formattedData.reduce((sum, item) => sum + item.hours, 0);
+
+            formattedData.forEach(item => {
+                labels.push(item.stage.length > 25 ? item.stage.substring(0,25) + '...' : item.stage);
+                barValues.push(item.hours.toFixed(1));
+                cumulative += item.hours;
+                lineValues.push(((cumulative / totalHours) * 100).toFixed(1));
+            });
+
+            if(labels.length === 0) {
+                labels = ["Sem Dados"]; barValues = [0]; lineValues = [0];
+            }
+
+            drawChart(labels, barValues, lineValues);
+        }
+
+        function drawChart(labels, barValues, lineValues) {
+            const ctx = document.getElementById('paretoChart').getContext('2d');
+            if (currentChart) currentChart.destroy(); 
+
+            currentChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '% Acumulada',
+                            data: lineValues,
+                            type: 'line',
+                            borderColor: '#dc2626',
+                            backgroundColor: '#dc2626',
+                            yAxisID: 'y1',
+                            borderWidth: 3,
+                            tension: 0.1,
+                            pointRadius: 4
+                        },
+                        {
+                            label: 'Tempo Retido (Horas)',
+                            data: barValues,
+                            backgroundColor: '#2563eb',
+                            yAxisID: 'y',
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    if (context.datasetIndex === 0) return context.raw + '% Acumulado';
+                                    let hrs = parseFloat(context.raw);
+                                    let days = Math.floor(hrs / 24);
+                                    let remHrs = Math.floor(hrs % 24);
+                                    if(days > 0) return `Tempo: ${days} dia(s) e ${remHrs}h`;
+                                    return `Tempo: ${hrs.toFixed(1)} horas`;
+                                }
+                            }
+                        },
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Horas Totais' } },
+                        y1: { type: 'linear', display: true, position: 'right', max: 105, grid: { drawOnChartArea: false }, title: { display: true, text: 'Percentual (%)' } }
+                    }
+                }
             });
         }
 
@@ -581,7 +754,6 @@
 
             const searchTerm = document.getElementById('search-input').value.toLowerCase();
             
-            // LÓGICA DE FILTRAGEM (INCLUINDO TRANSFERÊNCIAS)
             let userProjects = appData.projects.filter(p => {
                 const isOwner = p.owner === currentUser;
                 const isPreviousOwner = p.previousOwners && p.previousOwners.includes(currentUser);
@@ -589,10 +761,8 @@
                 if (draftsmanCurrentTab === 'andamento') {
                     return isOwner && p.stageIndex !== 12;
                 } else if (draftsmanCurrentTab === 'transferidos') {
-                    // Aparece se ele já tocou na obra, não é mais o dono atual, e ainda não acabou
                     return isPreviousOwner && !isOwner && p.stageIndex !== 12;
                 } else if (draftsmanCurrentTab === 'concluidos') {
-                    // Se a obra acabou e ele é o dono ou já tocou nela antes, aparece em Concluídos
                     return (isOwner || isPreviousOwner) && p.stageIndex === 12;
                 }
                 return false;
@@ -613,7 +783,7 @@
 
             userProjects.forEach(project => {
                 const isCompleted = project.stageIndex === 12;
-                const isOwner = project.owner === currentUser; // Verifica se é o dono atual ou só um ex-dono espiando
+                const isOwner = project.owner === currentUser; 
                 
                 const cardClass = isCompleted ? 'completed' : (project.isImpeded ? 'impediment' : '');
                 const card = document.createElement('div'); card.className = `project-card ${cardClass}`;
@@ -624,16 +794,13 @@
                 let historyHtml = '';
                 project.history.forEach((item, index) => {
                     const authorName = item.author ? item.author : project.owner;
-                    // Só mostra botão de editar/excluir etapa se o cara ainda for o dono do projeto
                     const editBtns = isOwner ? `<button class="icon-btn" onclick="editHistoryItem('${project.id}', ${index})" title="Editar Observação">✏️</button><button class="icon-btn" onclick="deleteHistoryItem('${project.id}', ${index})" title="Apagar Etapa/Registro">🗑️</button>` : '';
                     
                     historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${item.stage === '📢 REGISTRO EXTRA' ? 'color: #9333ea;' : ''}">${item.stage}</span><div class="timeline-actions">${editBtns}</div></div><div class="timeline-obs"><span>↳ Obs: ${item.obs} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span><span class="timeline-date">${item.date}</span></div></div>`;
                 });
 
-                // Se não for dono (está espiando na aba Transferidos), bloqueia o select
                 const disabledSelect = (project.isImpeded || !isOwner) ? 'disabled' : '';
                 
-                // Botões de ação principais: Só mostra se for o dono atual
                 const mainActionBtns = isOwner ? `
                     <button class="secondary" onclick="registerEvent('${project.id}')" title="Registrar Acontecimento">📝 Fato</button>
                     <button class="warning" onclick="openTransferModal('${project.id}')" style="background:#8b5cf6; color:white;">🔄 Transferir</button>
@@ -655,13 +822,13 @@
                     <div class="timeline"><strong>Histórico e Observações:</strong><br>${historyHtml}</div>
                     <div class="actions">
                         ${mainActionBtns}
-                        <button class="info" onclick="exportReportPDF('${project.id}')">📄 PDF</button>
+                        <button class="info" onclick="exportReportPDF('${project.id}')">📄 Preview PDF</button>
                     </div>`;
                 container.appendChild(card);
             });
         }
 
-        // ---------- RELATÓRIOS PDF ----------
+        // ---------- RELATÓRIOS PDF (ABRINDO EM NOVA GUIA) ----------
         function exportReportPDF(id) {
             const project = appData.projects.find(p => p.id === id); const doc = new window.jspdf.jsPDF();
             doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(37, 99, 235); doc.text("Historico de Projeto", 20, 20);
@@ -684,7 +851,6 @@
                 doc.setFontSize(9); doc.setTextColor(150, 150, 150); doc.setFont("helvetica", "normal"); doc.text(item.date, 190, yOffset, { align: "right" });
                 yOffset += 4;
                 
-                // Inclusão da Assinatura no PDF
                 const authorText = item.author ? ` [Resp: ${sanitizeForPDF(item.author)}]` : "";
                 const splitObs = doc.splitTextToSize(`Obs: ${sanitizeForPDF(item.obs)}${authorText}`, 160); 
                 
@@ -693,12 +859,14 @@
                 doc.setFontSize(10); doc.setTextColor(75, 85, 99); doc.setFont("helvetica", "italic"); doc.text(splitObs, 25, yOffset + 6);
                 yOffset += boxHeight + 10;
             });
-            doc.save(`Projeto_${sanitizeForPDF(project.name.replace(/\s+/g, '_'))}.pdf`);
+            
+            // Renderiza na memória e abre em nova guia
+            const pdfBlob = doc.output('blob');
+            window.open(URL.createObjectURL(pdfBlob), '_blank');
         }
 
         function exportDraftsmanReport() { 
             const isAndamento = draftsmanCurrentTab === 'andamento';
-            
             let projectList = appData.projects.filter(p => {
                 const isOwner = p.owner === currentUser;
                 const isPreviousOwner = p.previousOwners && p.previousOwners.includes(currentUser);
@@ -706,7 +874,6 @@
                 if (draftsmanCurrentTab === 'transferidos') return isPreviousOwner && !isOwner && p.stageIndex !== 12;
                 if (draftsmanCurrentTab === 'concluidos') return (isOwner || isPreviousOwner) && p.stageIndex === 12;
             });
-
             generateListPDF(projectList, `Projetos ${sanitizeForPDF(currentUser)} - ${draftsmanCurrentTab.toUpperCase()}`); 
         }
         
@@ -756,7 +923,10 @@
                     yOffset += cardHeight + 6;
                 });
             }
-            doc.save(`Relatorio_${titleSuffix.replace(/\s+/g, '_')}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`);
+            
+            // Renderiza na memória e abre em nova guia
+            const pdfBlob = doc.output('blob');
+            window.open(URL.createObjectURL(pdfBlob), '_blank');
         }
     </script>
 </body>

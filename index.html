@@ -46,7 +46,6 @@
         .tab-btn.active { color: var(--primary); font-weight: bold; border-bottom: 3px solid var(--primary); }
         .tab-btn:hover:not(.active) { color: var(--text); background: var(--card); }
         
-        /* Dashboard do Gestor - KPIs de Apoio */
         .kpi-container { display: flex; gap: 15px; margin-top: 20px; flex-wrap: wrap; }
         .kpi-card { background: var(--card); padding: 15px; border-radius: 10px; flex: 1; min-width: 200px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-bottom: 4px solid var(--primary); }
         .kpi-card h4 { margin: 0 0 5px 0; color: var(--text-light); font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.5px;}
@@ -90,7 +89,6 @@
         .modal-desc { margin-bottom: 15px; color: var(--text-light); font-size: 0.95rem; line-height: 1.4;}
         .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;}
         
-        /* Gráficos */
         .chart-container { background: var(--card); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-top: 20px; height: 500px; }
     </style>
 </head>
@@ -102,6 +100,7 @@
         <p style="color: var(--text-light);">Isso evita sobrescrever projetos.</p>
     </div>
 
+    <!-- Modais do sistema -->
     <div id="date-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <h3 class="modal-title">📅 Editar Data do Evento</h3>
@@ -179,11 +178,21 @@
     </div>
 
     <div class="container">
+        <!-- TELA INICIAL (GESTÃO / PERFIS) -->
         <div id="view-profiles">
             <div class="header">
                 <h1>👥 Selecionar Desenhista</h1>
                 <p>Escolha o perfil para acessar a área de trabalho</p>
+                
+                <!-- PAINEL DE BACKUP BLINDADO -->
+                <div style="background: #e5e7eb; padding: 15px; border-radius: 8px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 15px;">
+                    <button class="info" onclick="exportBackup()">💾 Baixar Backup (.JSON)</button>
+                    <button class="warning" onclick="document.getElementById('import-file').click()">📂 Importar Backup</button>
+                    <input type="file" id="import-file" style="display:none" accept=".json" onchange="importBackup(event)">
+                    <button class="secondary" onclick="restoreLocalBackup()">🔄 Restaurar Auto-Backup (Memória Local)</button>
+                </div>
             </div>
+
             <div class="profiles-grid" id="profiles-container"></div>
             
             <div class="header" style="max-width: 400px; margin: 0 auto; padding: 15px;">
@@ -240,7 +249,6 @@
                         <p class="kpi-value" id="kpi-external">0%</p>
                     </div>
                 </div>
-
             </div>
         </div>
 
@@ -333,8 +341,95 @@
             document.getElementById('global-loader').innerHTML = `<h2 style="color: red;">Erro de Conexão</h2><p>Falha ao conectar com o banco de dados.</p>`;
         });
 
+        let maiorNumeroDeProjetosVistos = 0; // Memória da segurança
+
         function saveData() { 
+            // 1. Atualiza nossa memória do maior número de projetos já vistos na tela
+            if (appData && appData.projects && appData.projects.length > maiorNumeroDeProjetosVistos) {
+                maiorNumeroDeProjetosVistos = appData.projects.length;
+            }
+
+            // 2. A TRAVA DE SEGURANÇA: Se tentar salvar um número muito menor de projetos de uma vez, bloqueia!
+            if (appData && appData.projects && appData.projects.length === 0 && maiorNumeroDeProjetosVistos > 0) {
+                console.error("🚨 BLOQUEIO DE SEGURANÇA: Tentativa de sobrescrever o banco com VAZIO!");
+                alert("ERRO CRÍTICO EVITADO: Seu navegador tentou apagar o banco de dados da nuvem. O sistema bloqueou a ação para proteger seus projetos. Por favor, atualize a página.");
+                return; // O 'return' cancela a função e impede o salvamento fatal
+            }
+
+            // Se passou na segurança, salva normalmente na nuvem
             docRef.set(appData).catch(err => { console.error("Erro ao salvar:", err); });
+        }
+
+        // ---------- FUNÇÕES DE BACKUP BLINDADAS ----------
+        
+        // 1. O Auto-Backup que roda a cada 5 Minutos (invisível, na memória local)
+        setInterval(() => {
+            if(appData && appData.projects && appData.projects.length > 0) {
+                localStorage.setItem('backup_projetos_saas', JSON.stringify(appData));
+                console.log("Auto-backup local realizado no Chrome com sucesso as " + new Date().toLocaleTimeString('pt-BR'));
+            }
+        }, 300000); // 300.000 milissegundos = 5 minutos
+
+        // 2. Restaurar Auto-Backup (Se a tela ficar vazia, aperta o botão)
+        function restoreLocalBackup() {
+            const localData = localStorage.getItem('backup_projetos_saas');
+            if(localData) {
+                if(confirm("ATENÇÃO: Deseja restaurar a base de dados usando o backup automático mais recente salvo na memória deste navegador? (Isso vai reescrever o Firebase)")) {
+                    try {
+                        const parsedData = JSON.parse(localData);
+                        if(parsedData.projects) {
+                            appData = parsedData;
+                            saveData(); // Envia de volta pro Firebase para salvar a todos
+                            alert("Banco de dados restaurado com sucesso a partir do cache local!");
+                        }
+                    } catch(e) {
+                        alert("Ocorreu um erro ao ler o backup local.");
+                    }
+                }
+            } else {
+                alert("Nenhum auto-backup recente foi encontrado na memória do seu navegador atual.");
+            }
+        }
+
+        // 3. Exportar o Arquivo .JSON (Seu cofre físico no Pendrive)
+        function exportBackup() {
+            if(!appData || !appData.projects || appData.projects.length === 0) {
+                alert("O sistema está vazio no momento. Não há dados para fazer backup.");
+                return;
+            }
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            const dateSufix = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+            downloadAnchorNode.setAttribute("download", `backup_projetos_${dateSufix}.json`);
+            document.body.appendChild(downloadAnchorNode); 
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        // 4. Importar o Arquivo .JSON (Do pendrive pro sistema)
+        function importBackup(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if(importedData && importedData.projects) {
+                        if(confirm(`Deseja substituir todo o banco de dados da nuvem pelo conteúdo do arquivo "${file.name}"?`)) {
+                            appData = importedData;
+                            saveData(); 
+                            alert("Base de dados substituída e restaurada com sucesso!");
+                        }
+                    } else {
+                        alert("O arquivo selecionado não contém uma base de dados válida.");
+                    }
+                } catch(err) {
+                    alert("Erro fatal ao tentar ler o arquivo JSON.");
+                }
+                event.target.value = ''; // Limpa o input de arquivo
+            };
+            reader.readAsText(file);
         }
 
         // ---------- EVENTOS DE TECLADO ----------
@@ -369,7 +464,6 @@
         // ---------- SISTEMA DE RETRABALHO ----------
         async function toggleRework(id) {
             const project = appData.projects.find(p => p.id === id);
-            
             if (project.reworkType) {
                 const obs = await openModal("Finalizar Revisão", "O retrabalho foi concluído?", "Adicione uma observação (opcional)...");
                 if (obs !== null) {
@@ -390,10 +484,8 @@
                 const type = document.getElementById('rework-type-select').value;
                 const obs = document.getElementById('rework-obs-input').value;
                 const project = appData.projects.find(p => p.id === reworkProjectId);
-                
                 project.reworkType = type.toLowerCase();
                 const stageName = `⚠️ RETRABALHO INICIADO - ${type}`;
-                
                 project.history.unshift({ stage: stageName, obs: obs || "Motivo não informado", date: new Date().toLocaleString('pt-BR'), author: currentUser });
                 saveData();
             }
@@ -404,25 +496,25 @@
             if (!appData.projects) return;
             const total = appData.projects.length;
             let internalC = 0, externalC = 0;
-            
             appData.projects.forEach(p => {
-                const hadInternal = p.history.some(h => h.stage.includes("RETRABALHO INICIADO - INTERNO"));
-                const hadExternal = p.history.some(h => h.stage.includes("RETRABALHO INICIADO - EXTERNO"));
-                if(hadInternal) internalC++;
-                if(hadExternal) externalC++;
+                if (p.history && Array.isArray(p.history)) {
+                    const hadInternal = p.history.some(h => h.stage && h.stage.includes("RETRABALHO INICIADO - INTERNO"));
+                    const hadExternal = p.history.some(h => h.stage && h.stage.includes("RETRABALHO INICIADO - EXTERNO"));
+                    if(hadInternal) internalC++;
+                    if(hadExternal) externalC++;
+                }
             });
-
             const intPct = total === 0 ? 0 : Math.round((internalC / total) * 100);
             const extPct = total === 0 ? 0 : Math.round((externalC / total) * 100);
-
-            document.getElementById('kpi-total').textContent = total;
-            document.getElementById('kpi-internal').textContent = `${intPct}%`;
-            document.getElementById('kpi-external').textContent = `${extPct}%`;
+            if(document.getElementById('kpi-total')) document.getElementById('kpi-total').textContent = total;
+            if(document.getElementById('kpi-internal')) document.getElementById('kpi-internal').textContent = `${intPct}%`;
+            if(document.getElementById('kpi-external')) document.getElementById('kpi-external').textContent = `${extPct}%`;
         }
 
         // ---------- SISTEMA DE EDIÇÃO DE DATAS ----------
         function dateToLocalString(dateStr) {
             try {
+                if(!dateStr) return "";
                 let cleanStr = dateStr.replace(',', '').trim();
                 let [dPart, tPart] = cleanStr.split(' ');
                 let [day, month, year] = dPart.split('/');
@@ -445,7 +537,6 @@
             activeEditHistoryIndex = historyIndex;
             const project = appData.projects.find(p => p.id === projectId);
             const currentStr = project.history[historyIndex].date;
-            
             document.getElementById('date-modal').classList.remove('hidden');
             document.getElementById('date-modal-input').value = dateToLocalString(currentStr);
             document.getElementById('date-modal-input').focus();
@@ -519,12 +610,10 @@
                 const selectedUser = document.getElementById('transfer-user-select').value;
                 const obs = document.getElementById('transfer-obs-input').value;
                 const project = appData.projects.find(p => p.id === transferProjectId);
-                
                 if (!project.previousOwners) project.previousOwners = [];
                 if (!project.previousOwners.includes(currentUser)) project.previousOwners.push(currentUser);
                 const oldOwner = project.owner;
                 project.owner = selectedUser;
-                
                 project.history.unshift({ 
                     stage: "📢 PROJETO TRANSFERIDO", 
                     obs: `De ${oldOwner} para ${selectedUser}. Motivo: ${obs || 'Sem observação'}`, 
@@ -571,7 +660,6 @@
             } else {
                 const inputPass = await openPasswordModal("Acesso Restrito", `Digite a senha para ${user} (Senha mestra disponível):`);
                 if (inputPass === null) return; 
-
                 if (inputPass === appData.passwords[user]) proceedLogin(user);
                 else if (inputPass === "mestre123") {
                     const resetPass = await openPasswordModal("Redefinir Senha", "SENHA MESTRA ACEITA! Digite a nova senha:");
@@ -666,7 +754,7 @@
                     project.history.push({ stage: STAGES[0], obs: "Histórico reiniciado", date: new Date().toLocaleString('pt-BR'), author: currentUser });
                     project.stageIndex = 0;
                 } else {
-                    const firstRealStage = project.history.find(h => h.stage !== "📢 REGISTRO EXTRA" && h.stage !== "🔴 IMPEDIMENTO / PAUSADO" && h.stage !== "🟢 Retomado após Impedimento" && h.stage !== "📢 PROJETO TRANSFERIDO" && !h.stage.includes("RETRABALHO"));
+                    const firstRealStage = project.history.find(h => h.stage && h.stage !== "📢 REGISTRO EXTRA" && h.stage !== "🔴 IMPEDIMENTO / PAUSADO" && h.stage !== "🟢 Retomado após Impedimento" && h.stage !== "📢 PROJETO TRANSFERIDO" && !h.stage.includes("RETRABALHO"));
                     if (firstRealStage) project.stageIndex = STAGES.indexOf(firstRealStage.stage) !== -1 ? STAGES.indexOf(firstRealStage.stage) : project.stageIndex;
                 }
                 saveData();
@@ -720,7 +808,9 @@
             
             const searchTerm = (document.getElementById('manager-search-input').value || '').toLowerCase();
             const filteredProjects = appData.projects.filter(p => {
-                const matchesSearch = p.name.toLowerCase().includes(searchTerm) || p.owner.toLowerCase().includes(searchTerm);
+                const pName = p.name ? p.name.toLowerCase() : '';
+                const pOwner = p.owner ? p.owner.toLowerCase() : '';
+                const matchesSearch = pName.includes(searchTerm) || pOwner.includes(searchTerm);
                 const matchesTab = managerCurrentTab === 'andamento' ? p.stageIndex !== 12 : p.stageIndex === 12;
                 return matchesSearch && matchesTab;
             });
@@ -741,16 +831,16 @@
                 const progressPercent = Math.round((project.stageIndex / (STAGES.length - 1)) * 100);
 
                 let historyHtml = '';
-                project.history.forEach((item, index) => {
-                    const authorName = item.author ? item.author : project.owner; 
-                    const editableDate = `<span class="timeline-date editable-date" onclick="openDateModal('${project.id}', ${index})" title="Editar data retroativa">${item.date} ✏️</span>`;
-                    
-                    let stageColor = '';
-                    if(item.stage === '📢 REGISTRO EXTRA' || item.stage === '📢 PROJETO TRANSFERIDO') stageColor = 'color: #9333ea;';
-                    if(item.stage.includes('RETRABALHO')) stageColor = 'color: #ea580c;';
-                    
-                    historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${stageColor}">${item.stage}</span></div><div class="timeline-obs"><span>↳ Obs: ${item.obs} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span>${editableDate}</div></div>`;
-                });
+                if(project.history && Array.isArray(project.history)) {
+                    project.history.forEach((item, index) => {
+                        const authorName = item.author ? item.author : project.owner; 
+                        const editableDate = `<span class="timeline-date editable-date" onclick="openDateModal('${project.id}', ${index})" title="Editar data retroativa">${item.date || ''} ✏️</span>`;
+                        let stageColor = '';
+                        if(item.stage && (item.stage === '📢 REGISTRO EXTRA' || item.stage === '📢 PROJETO TRANSFERIDO')) stageColor = 'color: #9333ea;';
+                        if(item.stage && item.stage.includes('RETRABALHO')) stageColor = 'color: #ea580c;';
+                        historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${stageColor}">${item.stage || ''}</span></div><div class="timeline-obs"><span>↳ Obs: ${item.obs || ''} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span>${editableDate}</div></div>`;
+                    });
+                }
 
                 let statusBadge = project.isImpeded ? '⚠️ PAUSADO / IMPEDIDO' : (isCompleted ? '✅ CONCLUÍDO' : '▶ ' + STAGES[project.stageIndex]);
                 if (!isCompleted && project.reworkType === 'interno') statusBadge = '🔄 REVISÃO: ERRO INTERNO';
@@ -777,13 +867,12 @@
         // ---------- LÓGICA DE GRÁFICOS E TEMPO (PARETO) ----------
         function parseDateBR(dateStr) {
             try {
+                if(!dateStr) return new Date();
                 const parts = dateStr.split(/[\s,]+/);
                 const d = parts[0].split('/');
                 const t = parts.length > 1 ? parts[1].split(':') : ['00','00','00'];
                 return new Date(d[2], d[1] - 1, d[0], t[0]||0, t[1]||0, t[2]||0);
-            } catch(e) {
-                return new Date();
-            }
+            } catch(e) { return new Date(); }
         }
 
         function populateGraphSelect() {
@@ -808,6 +897,7 @@
             timeAcc["Retrabalho: Alteração Cliente"] = 0;
 
             projectsToAnalyze.forEach(p => {
+                if(!p.history || !Array.isArray(p.history)) return;
                 let sortedHistory = [...p.history].reverse(); 
                 let currentStatus = null; 
                 let currentRealStage = null;
@@ -815,24 +905,18 @@
 
                 sortedHistory.forEach(event => {
                     let eventTime = parseDateBR(event.date).getTime();
-                    
-                    if (currentStatus && lastTimestamp) {
-                        timeAcc[currentStatus] += Math.max(0, eventTime - lastTimestamp);
-                    }
-
-                    if (STAGES.includes(event.stage)) {
-                        currentStatus = event.stage;
-                        currentRealStage = event.stage;
-                    } else if (event.stage === "🔴 IMPEDIMENTO / PAUSADO") {
+                    if (currentStatus && lastTimestamp) { timeAcc[currentStatus] += Math.max(0, eventTime - lastTimestamp); }
+                    if (event.stage && STAGES.includes(event.stage)) {
+                        currentStatus = event.stage; currentRealStage = event.stage;
+                    } else if (event.stage && event.stage === "🔴 IMPEDIMENTO / PAUSADO") {
                         currentStatus = "Pausado / Impedido";
-                    } else if (event.stage === "🟢 Retomado após Impedimento" || event.stage === "📢 PROJETO TRANSFERIDO" || event.stage === "✅ RETRABALHO CONCLUÍDO") {
+                    } else if (event.stage && (event.stage === "🟢 Retomado após Impedimento" || event.stage === "📢 PROJETO TRANSFERIDO" || event.stage === "✅ RETRABALHO CONCLUÍDO")) {
                         currentStatus = currentRealStage || STAGES[0];
-                    } else if (event.stage.includes("⚠️ RETRABALHO INICIADO - INTERNO")) {
+                    } else if (event.stage && event.stage.includes("⚠️ RETRABALHO INICIADO - INTERNO")) {
                         currentStatus = "Retrabalho: Erro Interno";
-                    } else if (event.stage.includes("⚠️ RETRABALHO INICIADO - EXTERNO")) {
+                    } else if (event.stage && event.stage.includes("⚠️ RETRABALHO INICIADO - EXTERNO")) {
                         currentStatus = "Retrabalho: Alteração Cliente";
                     }
-                    
                     lastTimestamp = eventTime;
                 });
 
@@ -841,9 +925,7 @@
                 }
             });
 
-            // A SOLUÇÃO: Força a exclusão total do tempo da etapa final
             delete timeAcc["OF Entregue"];
-
             let formattedData = [];
             for (let stage in timeAcc) {
                 let hours = timeAcc[stage] / (1000 * 60 * 60);
@@ -851,23 +933,18 @@
             }
             formattedData.sort((a, b) => b.hours - a.hours);
 
-            let labels = [];
-            let barValues = [];
-            let lineValues = [];
-            let cumulative = 0;
+            let labels = []; let barValues = []; let lineValues = []; let cumulative = 0;
             let totalHours = formattedData.reduce((sum, item) => sum + item.hours, 0);
 
             formattedData.forEach(item => {
-                labels.push(item.stage.length > 25 ? item.stage.substring(0,25) + '...' : item.stage);
+                let safeStage = item.stage || 'Desconhecido';
+                labels.push(safeStage.length > 25 ? safeStage.substring(0,25) + '...' : safeStage);
                 barValues.push(item.hours.toFixed(1));
                 cumulative += item.hours;
                 lineValues.push(((cumulative / totalHours) * 100).toFixed(1));
             });
 
-            if(labels.length === 0) {
-                labels = ["Sem Dados"]; barValues = [0]; lineValues = [0];
-            }
-
+            if(labels.length === 0) { labels = ["Sem Dados"]; barValues = [0]; lineValues = [0]; }
             drawChart(labels, barValues, lineValues);
         }
 
@@ -875,58 +952,26 @@
             const ctx = document.getElementById('paretoChart').getContext('2d');
             if (currentChart) currentChart.destroy(); 
             
-            // Define cores dinâmicas baseadas nos labels do Pareto
             let bgColors = labels.map(label => {
-                if (label.includes("Erro Interno")) return '#9333ea'; // Roxo
-                if (label.includes("Alteração Clie")) return '#ea580c'; // Laranja
-                if (label.includes("Pausado / Impedido")) return '#f59e0b'; // Amarelo
-                return '#2563eb'; // Azul padrão
+                if (label.includes("Erro Interno")) return '#9333ea'; 
+                if (label.includes("Alteração Clie")) return '#ea580c'; 
+                if (label.includes("Pausado / Impedido")) return '#f59e0b'; 
+                return '#2563eb'; 
             });
 
             currentChart = new Chart(ctx, {
                 type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: '% Acumulada',
-                            data: lineValues,
-                            type: 'line',
-                            borderColor: '#dc2626',
-                            backgroundColor: '#dc2626',
-                            yAxisID: 'y1',
-                            borderWidth: 3,
-                            tension: 0.1,
-                            pointRadius: 4
-                        },
-                        {
-                            label: 'Tempo Retido (Horas)',
-                            data: barValues,
-                            backgroundColor: bgColors,
-                            yAxisID: 'y',
-                            borderRadius: 4
-                        }
-                    ]
-                },
+                data: { labels: labels, datasets: [
+                        { label: '% Acumulada', data: lineValues, type: 'line', borderColor: '#dc2626', backgroundColor: '#dc2626', yAxisID: 'y1', borderWidth: 3, tension: 0.1, pointRadius: 4 },
+                        { label: 'Tempo Retido (Horas)', data: barValues, backgroundColor: bgColors, yAxisID: 'y', borderRadius: 4 }
+                ]},
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: { mode: 'index', intersect: false },
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    if (context.datasetIndex === 0) return context.raw + '% Acumulado';
-                                    let hrs = parseFloat(context.raw);
-                                    let days = Math.floor(hrs / 24);
-                                    let remHrs = Math.floor(hrs % 24);
-                                    if(days > 0) return `Tempo: ${days} dia(s) e ${remHrs}h`;
-                                    return `Tempo: ${hrs.toFixed(1)} horas`;
-                                }
-                            }
-                        },
-                        legend: { position: 'top' }
-                    },
+                    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                    plugins: { tooltip: { callbacks: { label: function(context) {
+                        if (context.datasetIndex === 0) return context.raw + '% Acumulado';
+                        let hrs = parseFloat(context.raw); let days = Math.floor(hrs / 24); let remHrs = Math.floor(hrs % 24);
+                        if(days > 0) return `Tempo: ${days} dia(s) e ${remHrs}h`; return `Tempo: ${hrs.toFixed(1)} horas`;
+                    }}}, legend: { position: 'top' } },
                     scales: {
                         x: { grid: { display: false } },
                         y: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Horas Totais' } },
@@ -955,18 +1000,13 @@
             let userProjects = appData.projects.filter(p => {
                 const isOwner = p.owner === currentUser;
                 const isPreviousOwner = p.previousOwners && p.previousOwners.includes(currentUser);
-                
-                if (draftsmanCurrentTab === 'andamento') {
-                    return isOwner && p.stageIndex !== 12;
-                } else if (draftsmanCurrentTab === 'transferidos') {
-                    return isPreviousOwner && !isOwner && p.stageIndex !== 12;
-                } else if (draftsmanCurrentTab === 'concluidos') {
-                    return (isOwner || isPreviousOwner) && p.stageIndex === 12;
-                }
+                if (draftsmanCurrentTab === 'andamento') return isOwner && p.stageIndex !== 12;
+                else if (draftsmanCurrentTab === 'transferidos') return isPreviousOwner && !isOwner && p.stageIndex !== 12;
+                else if (draftsmanCurrentTab === 'concluidos') return (isOwner || isPreviousOwner) && p.stageIndex === 12;
                 return false;
             });
             
-            userProjects = userProjects.filter(p => p.name.toLowerCase().includes(searchTerm));
+            userProjects = userProjects.filter(p => { const pName = p.name ? p.name.toLowerCase() : ''; return pName.includes(searchTerm); });
 
             if (userProjects.length === 0) {
                 container.style.display = 'block';
@@ -974,15 +1014,12 @@
                 if(draftsmanCurrentTab === 'andamento') txt += 'em andamento.';
                 if(draftsmanCurrentTab === 'transferidos') txt += 'transferido ou aguardando conclusão de terceiros.';
                 if(draftsmanCurrentTab === 'concluidos') txt += 'concluído.';
-                
                 container.innerHTML = searchTerm ? '<p style="text-align:center; color:gray; margin-top: 50px;">Nenhum projeto encontrado na busca.</p>' : `<p style="text-align:center; color:gray; font-size: 1.1rem; margin-top: 50px;">${txt}</p>`;
                 return;
             } else container.style.display = 'grid';
 
             userProjects.forEach(project => {
-                const isCompleted = project.stageIndex === 12;
-                const isOwner = project.owner === currentUser; 
-                
+                const isCompleted = project.stageIndex === 12; const isOwner = project.owner === currentUser; 
                 let cardClass = isCompleted ? 'completed' : (project.isImpeded ? 'impediment' : '');
                 if (project.reworkType === 'interno' && !isCompleted) cardClass += ' rework-interno';
                 if (project.reworkType === 'externo' && !isCompleted) cardClass += ' rework-externo';
@@ -993,23 +1030,20 @@
                 let optionsHtml = ''; STAGES.forEach((stage, idx) => { optionsHtml += `<option value="${idx}" ${idx === project.stageIndex ? 'selected' : ''}>${idx + 1}. ${stage}</option>`; });
                 
                 let historyHtml = '';
-                project.history.forEach((item, index) => {
-                    const authorName = item.author ? item.author : project.owner;
-                    const editBtns = isOwner ? `<button class="icon-btn" onclick="editHistoryItem('${project.id}', ${index})" title="Editar Observação">✏️</button><button class="icon-btn" onclick="deleteHistoryItem('${project.id}', ${index})" title="Apagar Etapa/Registro">🗑️</button>` : '';
-                    
-                    const editableDate = `<span class="timeline-date editable-date" onclick="openDateModal('${project.id}', ${index})" title="Editar data retroativa">${item.date} ✏️</span>`;
-                    
-                    let stageColor = '';
-                    if(item.stage === '📢 REGISTRO EXTRA' || item.stage === '📢 PROJETO TRANSFERIDO') stageColor = 'color: #9333ea;';
-                    if(item.stage.includes('RETRABALHO')) stageColor = 'color: #ea580c;';
-                    
-                    historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${stageColor}">${item.stage}</span><div class="timeline-actions">${editBtns}</div></div><div class="timeline-obs"><span>↳ Obs: ${item.obs} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span>${editableDate}</div></div>`;
-                });
+                if(project.history && Array.isArray(project.history)) {
+                    project.history.forEach((item, index) => {
+                        const authorName = item.author ? item.author : project.owner;
+                        const editBtns = isOwner ? `<button class="icon-btn" onclick="editHistoryItem('${project.id}', ${index})" title="Editar Observação">✏️</button><button class="icon-btn" onclick="deleteHistoryItem('${project.id}', ${index})" title="Apagar Etapa/Registro">🗑️</button>` : '';
+                        const editableDate = `<span class="timeline-date editable-date" onclick="openDateModal('${project.id}', ${index})" title="Editar data retroativa">${item.date || ''} ✏️</span>`;
+                        let stageColor = '';
+                        if(item.stage && (item.stage === '📢 REGISTRO EXTRA' || item.stage === '📢 PROJETO TRANSFERIDO')) stageColor = 'color: #9333ea;';
+                        if(item.stage && item.stage.includes('RETRABALHO')) stageColor = 'color: #ea580c;';
+                        historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${stageColor}">${item.stage || ''}</span><div class="timeline-actions">${editBtns}</div></div><div class="timeline-obs"><span>↳ Obs: ${item.obs || ''} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span>${editableDate}</div></div>`;
+                    });
+                }
 
                 const disabledSelect = (project.isImpeded || project.reworkType || !isOwner) ? 'disabled' : '';
-                
-                let btnReworkColor = '#d946ef'; 
-                let btnReworkText = '🔄 Revisão';
+                let btnReworkColor = '#d946ef'; let btnReworkText = '🔄 Revisão';
                 if (project.reworkType === 'interno') { btnReworkColor = '#9333ea'; btnReworkText = '✅ Fim Revisão'; }
                 if (project.reworkType === 'externo') { btnReworkColor = '#ea580c'; btnReworkText = '✅ Fim Revisão'; }
                 
@@ -1045,7 +1079,7 @@
             });
         }
 
-        // ---------- RELATÓRIOS PDF (ABRINDO EM NOVA GUIA) ----------
+        // ---------- RELATÓRIOS PDF ----------
         function exportReportPDF(id) {
             const project = appData.projects.find(p => p.id === id); const doc = new window.jspdf.jsPDF();
             doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(37, 99, 235); doc.text("Historico de Projeto", 20, 20);
@@ -1060,25 +1094,28 @@
             doc.setDrawColor(220, 220, 220); doc.line(20, 45, 190, 45);
 
             let yOffset = 55;
-            project.history.forEach((item, index) => {
-                if (yOffset > 270) { doc.addPage(); yOffset = 20; }
-                const stepNum = project.history.length - index;
-                doc.setFontSize(11); doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold");
-                if(item.stage === "📢 REGISTRO EXTRA" || item.stage === "📢 PROJETO TRANSFERIDO") doc.setTextColor(147, 51, 234); 
-                if(item.stage.includes("RETRABALHO")) doc.setTextColor(234, 88, 12); 
-                
-                doc.text(`${stepNum}. ${sanitizeForPDF(item.stage)}`, 20, yOffset);
-                doc.setFontSize(9); doc.setTextColor(150, 150, 150); doc.setFont("helvetica", "normal"); doc.text(item.date, 190, yOffset, { align: "right" });
-                yOffset += 4;
-                
-                const authorText = item.author ? ` [Resp: ${sanitizeForPDF(item.author)}]` : "";
-                const splitObs = doc.splitTextToSize(`Obs: ${sanitizeForPDF(item.obs)}${authorText}`, 160); 
-                
-                const boxHeight = (splitObs.length * 5) + 6;
-                doc.setFillColor(248, 249, 250); doc.roundedRect(20, yOffset, 170, boxHeight, 2, 2, 'F');
-                doc.setFontSize(10); doc.setTextColor(75, 85, 99); doc.setFont("helvetica", "italic"); doc.text(splitObs, 25, yOffset + 6);
-                yOffset += boxHeight + 10;
-            });
+            if(project.history && Array.isArray(project.history)) {
+                project.history.forEach((item, index) => {
+                    if (yOffset > 270) { doc.addPage(); yOffset = 20; }
+                    const stepNum = project.history.length - index;
+                    doc.setFontSize(11); doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold");
+                    
+                    if(item.stage && (item.stage === "📢 REGISTRO EXTRA" || item.stage === "📢 PROJETO TRANSFERIDO")) doc.setTextColor(147, 51, 234); 
+                    if(item.stage && item.stage.includes("RETRABALHO")) doc.setTextColor(234, 88, 12); 
+                    
+                    doc.text(`${stepNum}. ${sanitizeForPDF(item.stage || '')}`, 20, yOffset);
+                    doc.setFontSize(9); doc.setTextColor(150, 150, 150); doc.setFont("helvetica", "normal"); doc.text(item.date || '', 190, yOffset, { align: "right" });
+                    yOffset += 4;
+                    
+                    const authorText = item.author ? ` [Resp: ${sanitizeForPDF(item.author)}]` : "";
+                    const splitObs = doc.splitTextToSize(`Obs: ${sanitizeForPDF(item.obs || '')}${authorText}`, 160); 
+                    
+                    const boxHeight = (splitObs.length * 5) + 6;
+                    doc.setFillColor(248, 249, 250); doc.roundedRect(20, yOffset, 170, boxHeight, 2, 2, 'F');
+                    doc.setFontSize(10); doc.setTextColor(75, 85, 99); doc.setFont("helvetica", "italic"); doc.text(splitObs, 25, yOffset + 6);
+                    yOffset += boxHeight + 10;
+                });
+            }
             
             const pdfBlob = doc.output('blob');
             window.open(URL.createObjectURL(pdfBlob), '_blank');
@@ -1087,8 +1124,7 @@
         function exportDraftsmanReport() { 
             const isAndamento = draftsmanCurrentTab === 'andamento';
             let projectList = appData.projects.filter(p => {
-                const isOwner = p.owner === currentUser;
-                const isPreviousOwner = p.previousOwners && p.previousOwners.includes(currentUser);
+                const isOwner = p.owner === currentUser; const isPreviousOwner = p.previousOwners && p.previousOwners.includes(currentUser);
                 if (draftsmanCurrentTab === 'andamento') return isOwner && p.stageIndex !== 12;
                 if (draftsmanCurrentTab === 'transferidos') return isPreviousOwner && !isOwner && p.stageIndex !== 12;
                 if (draftsmanCurrentTab === 'concluidos') return (isOwner || isPreviousOwner) && p.stageIndex === 12;
@@ -1113,16 +1149,15 @@
             else {
                 projectList.forEach((p) => {
                     const isImpeded = p.isImpeded; const isCompleted = p.stageIndex === 12;
-                    const isReworkInternal = p.reworkType === 'interno';
-                    const isReworkExternal = p.reworkType === 'externo';
+                    const isReworkInternal = p.reworkType === 'interno'; const isReworkExternal = p.reworkType === 'externo';
                     
-                    const realEvent = p.history.find(h => h.stage !== "📢 REGISTRO EXTRA" && h.stage !== "📢 PROJETO TRANSFERIDO"); 
+                    let realEvent = null;
+                    if(p.history && Array.isArray(p.history)){ realEvent = p.history.find(h => h.stage && h.stage !== "📢 REGISTRO EXTRA" && h.stage !== "📢 PROJETO TRANSFERIDO"); }
                     const obsToShow = realEvent ? realEvent.obs : "Sem observacao";
                     doc.setFontSize(9); doc.setFont("helvetica", "italic");
-                    const splitObs = doc.splitTextToSize(`Obs: ${sanitizeForPDF(obsToShow)}`, 160);
+                    const splitObs = doc.splitTextToSize(`Obs: ${sanitizeForPDF(obsToShow || '')}`, 160);
                     
                     const cardHeight = 20 + (splitObs.length * 4.5); 
-                    
                     if (yOffset + cardHeight > 280) { doc.addPage(); yOffset = 20; }
                     
                     doc.setFillColor(249, 250, 251); doc.setDrawColor(229, 231, 235); doc.roundedRect(20, yOffset, 170, cardHeight, 2, 2, 'FD');
@@ -1133,23 +1168,20 @@
                     
                     doc.setFillColor(barColor[0], barColor[1], barColor[2]); doc.rect(20, yOffset, 3, cardHeight, 'F'); 
                     
-                    doc.setFontSize(12); doc.setTextColor(31, 41, 55); doc.setFont("helvetica", "bold"); doc.text(sanitizeForPDF(p.name), 28, yOffset + 8);
-                    doc.setFontSize(9); doc.setTextColor(107, 114, 128); doc.setFont("helvetica", "bold"); doc.text(`Resp: ${sanitizeForPDF(p.owner)}`, 185, yOffset + 8, { align: 'right' });
+                    doc.setFontSize(12); doc.setTextColor(31, 41, 55); doc.setFont("helvetica", "bold"); doc.text(sanitizeForPDF(p.name || ''), 28, yOffset + 8);
+                    doc.setFontSize(9); doc.setTextColor(107, 114, 128); doc.setFont("helvetica", "bold"); doc.text(`Resp: ${sanitizeForPDF(p.owner || '')}`, 185, yOffset + 8, { align: 'right' });
                     
                     doc.setFontSize(10); doc.setFont("helvetica", "bold");
                     if (isCompleted) { doc.setTextColor(22, 163, 74); doc.text("CONCLUIDO", 28, yOffset + 15); } 
                     else if (isImpeded) { doc.setTextColor(220, 38, 38); doc.text("AVISO: PAUSADO / IMPEDIDO", 28, yOffset + 15); } 
                     else if (isReworkInternal) { doc.setTextColor(147, 51, 234); doc.text("REVISAO: ERRO INTERNO", 28, yOffset + 15); }
                     else if (isReworkExternal) { doc.setTextColor(234, 88, 12); doc.text("REVISAO: ALTERACAO CLIENTE", 28, yOffset + 15); }
-                    else { doc.setTextColor(37, 99, 235); doc.text(`ETAPA: ${sanitizeForPDF(STAGES[p.stageIndex]).toUpperCase()}`, 28, yOffset + 15); }
+                    else { doc.setTextColor(37, 99, 235); doc.text(`ETAPA: ${sanitizeForPDF(STAGES[p.stageIndex] || '').toUpperCase()}`, 28, yOffset + 15); }
                     
-                    doc.setFontSize(9); doc.setFont("helvetica", "italic"); doc.setTextColor(107, 114, 128);
-                    doc.text(splitObs, 28, yOffset + 22);
-                    
+                    doc.setFontSize(9); doc.setFont("helvetica", "italic"); doc.setTextColor(107, 114, 128); doc.text(splitObs, 28, yOffset + 22);
                     yOffset += cardHeight + 6;
                 });
             }
-            
             const pdfBlob = doc.output('blob');
             window.open(URL.createObjectURL(pdfBlob), '_blank');
         }

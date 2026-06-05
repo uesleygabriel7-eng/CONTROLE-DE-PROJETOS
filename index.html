@@ -45,10 +45,22 @@
         .tab-btn { background: transparent; color: var(--text-light); border: none; font-size: 1.05rem; padding: 10px 20px; cursor: pointer; border-radius: 5px 5px 0 0; transition: 0.2s; margin-bottom: -2px; }
         .tab-btn.active { color: var(--primary); font-weight: bold; border-bottom: 3px solid var(--primary); }
         .tab-btn:hover:not(.active) { color: var(--text); background: var(--card); }
+        
+        /* Dashboard do Gestor - KPIs de Apoio */
+        .kpi-container { display: flex; gap: 15px; margin-top: 20px; flex-wrap: wrap; }
+        .kpi-card { background: var(--card); padding: 15px; border-radius: 10px; flex: 1; min-width: 200px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-bottom: 4px solid var(--primary); }
+        .kpi-card h4 { margin: 0 0 5px 0; color: var(--text-light); font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.5px;}
+        .kpi-card .kpi-value { font-size: 1.8rem; font-weight: bold; color: var(--text); margin: 0;}
+        .kpi-card.purple { border-bottom-color: #9333ea; }
+        .kpi-card.orange { border-bottom-color: #ea580c; }
+        
         .projects-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; align-items: start; }
-        .project-card { background-color: var(--card); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid var(--border); border-left: 6px solid var(--primary); display: flex; flex-direction: column; }
+        .project-card { background-color: var(--card); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid var(--border); border-left: 6px solid var(--primary); display: flex; flex-direction: column; transition: all 0.3s;}
         .project-card.impediment { border-left-color: var(--warning); background-color: #fffbeb; }
         .project-card.completed { border-left-color: var(--success); }
+        .project-card.rework-interno { border-left-color: #9333ea; background-color: #faf5ff; }
+        .project-card.rework-externo { border-left-color: #ea580c; background-color: #fff7ed; }
+        
         .project-header { margin-bottom: 15px; }
         .project-title-container { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
         .project-header h2 { margin: 0; font-size: 1.3rem; word-break: break-word; }
@@ -98,6 +110,22 @@
             <div class="modal-buttons">
                 <button class="secondary" onclick="closeDateModal(false)">Cancelar</button>
                 <button onclick="closeDateModal(true)">Salvar Data</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="rework-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 class="modal-title">🔄 Classificar Revisão</h3>
+            <p class="modal-desc">Selecione a origem do retrabalho para registrar no Gráfico de Pareto:</p>
+            <select id="rework-type-select" style="margin-bottom: 15px;">
+                <option value="INTERNO">🔴 Erro Interno (Melhorar Qualidade/Processos)</option>
+                <option value="EXTERNO">🟠 Solicitação Externa (Alteração à pedido do Cliente)</option>
+            </select>
+            <textarea id="rework-obs-input" rows="3" placeholder="Descreva o que precisa ser alterado/refeito..."></textarea>
+            <div class="modal-buttons">
+                <button class="secondary" onclick="closeReworkModal(false)">Cancelar</button>
+                <button class="warning" style="background-color: #d946ef; color: white;" onclick="closeReworkModal(true)">Iniciar Revisão</button>
             </div>
         </div>
     </div>
@@ -193,9 +221,26 @@
                         <option value="ALL">Geral (Todos os Projetos do Sistema)</option>
                     </select>
                 </div>
+                
                 <div class="chart-container">
                     <canvas id="paretoChart"></canvas>
                 </div>
+
+                <div class="kpi-container" id="kpi-panel">
+                    <div class="kpi-card">
+                        <h4>Total de Projetos</h4>
+                        <p class="kpi-value" id="kpi-total">0</p>
+                    </div>
+                    <div class="kpi-card purple">
+                        <h4>Taxa de Erro Interno</h4>
+                        <p class="kpi-value" id="kpi-internal">0%</p>
+                    </div>
+                    <div class="kpi-card orange">
+                        <h4>Alteração de Clientes</h4>
+                        <p class="kpi-value" id="kpi-external">0%</p>
+                    </div>
+                </div>
+
             </div>
         </div>
 
@@ -235,7 +280,6 @@
             messagingSenderId: "729227598528",
             appId: "1:729227598528:web:2b004fc426588d00976b25"
         };
-
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         const docRef = db.collection("sistema").doc("bancoDeDados");
@@ -244,10 +288,11 @@
             "Aguardando Início (Fila)", "Em Desenho", "Projeto Definitivo: Correção do Alexandre",
             "Projeto Definitivo: Correção de outro desenhista", "Corrigindo Defeitos de Projetos Apontados na Correção",
             "Em Assinatura", "Projeto Recebido Assinado para Fazer OF", "OF Sendo DESENHADA",
-            "OF: Correção do Alexandre", "OF: Correção de outro desenhista", "OF Sendo Corrigida Falhas Apontadas na Correção",
+            "OF: Correção do Alexandre", "OF: Correção de outro desenhista", 
+            "OF Sendo Corrigida Falhas Apontadas na Correção",
             "OF Sendo Impressa", "OF Entregue"
         ];
-
+        
         let appData = { users: ["Uesley", "Gabriel"], passwords: {}, projects: [] };
         let currentUser = null;
         let managerCurrentTab = 'andamento';
@@ -259,6 +304,7 @@
         
         let activeEditProjectId = null;
         let activeEditHistoryIndex = null;
+        let reworkProjectId = null;
 
         // ---------- CONEXÃO EM TEMPO REAL ----------
         docRef.onSnapshot((doc) => {
@@ -274,6 +320,7 @@
                 renderProjects();
             } else {
                 renderProfiles();
+                updateKPIs();
                 if(managerCurrentTab === 'graficos'){
                     populateGraphSelect();
                     renderGraph();
@@ -313,9 +360,64 @@
             input.placeholder = placeholder; input.value = defaultValue; input.focus();
             return new Promise(resolve => { modalResolve = resolve; });
         }
+        
         function closeModal(isConfirmed) {
             document.getElementById('custom-modal').classList.add('hidden');
             if (modalResolve) { modalResolve(isConfirmed ? document.getElementById('modal-input').value : null); modalResolve = null; }
+        }
+
+        // ---------- SISTEMA DE RETRABALHO ----------
+        async function toggleRework(id) {
+            const project = appData.projects.find(p => p.id === id);
+            
+            if (project.reworkType) {
+                const obs = await openModal("Finalizar Revisão", "O retrabalho foi concluído?", "Adicione uma observação (opcional)...");
+                if (obs !== null) {
+                    project.reworkType = null;
+                    project.history.unshift({ stage: "✅ RETRABALHO CONCLUÍDO", obs: obs || "Revisão finalizada", date: new Date().toLocaleString('pt-BR'), author: currentUser });
+                    saveData();
+                }
+            } else {
+                reworkProjectId = id;
+                document.getElementById('rework-obs-input').value = '';
+                document.getElementById('rework-modal').classList.remove('hidden');
+            }
+        }
+
+        function closeReworkModal(isConfirmed) {
+            document.getElementById('rework-modal').classList.add('hidden');
+            if (isConfirmed && reworkProjectId !== null) {
+                const type = document.getElementById('rework-type-select').value;
+                const obs = document.getElementById('rework-obs-input').value;
+                const project = appData.projects.find(p => p.id === reworkProjectId);
+                
+                project.reworkType = type.toLowerCase();
+                const stageName = `⚠️ RETRABALHO INICIADO - ${type}`;
+                
+                project.history.unshift({ stage: stageName, obs: obs || "Motivo não informado", date: new Date().toLocaleString('pt-BR'), author: currentUser });
+                saveData();
+            }
+            reworkProjectId = null;
+        }
+
+        function updateKPIs() {
+            if (!appData.projects) return;
+            const total = appData.projects.length;
+            let internalC = 0, externalC = 0;
+            
+            appData.projects.forEach(p => {
+                const hadInternal = p.history.some(h => h.stage.includes("RETRABALHO INICIADO - INTERNO"));
+                const hadExternal = p.history.some(h => h.stage.includes("RETRABALHO INICIADO - EXTERNO"));
+                if(hadInternal) internalC++;
+                if(hadExternal) externalC++;
+            });
+
+            const intPct = total === 0 ? 0 : Math.round((internalC / total) * 100);
+            const extPct = total === 0 ? 0 : Math.round((externalC / total) * 100);
+
+            document.getElementById('kpi-total').textContent = total;
+            document.getElementById('kpi-internal').textContent = `${intPct}%`;
+            document.getElementById('kpi-external').textContent = `${extPct}%`;
         }
 
         // ---------- SISTEMA DE EDIÇÃO DE DATAS ----------
@@ -371,6 +473,7 @@
             document.getElementById('pwd-modal-input').value = ''; document.getElementById('pwd-modal-input').focus();
             return new Promise(resolve => { passwordResolve = resolve; });
         }
+        
         function closePasswordModal(isConfirmed) {
             document.getElementById('password-modal').classList.add('hidden');
             if (passwordResolve) { passwordResolve(isConfirmed ? document.getElementById('pwd-modal-input').value : null); passwordResolve = null; }
@@ -384,6 +487,7 @@
             else document.getElementById('confirm-btn-yes').classList.remove('hidden');
             return new Promise(resolve => { confirmResolve = resolve; });
         }
+        
         function closeConfirmModal(isConfirmed) {
             document.getElementById('confirm-modal').classList.add('hidden');
             if (confirmResolve) { confirmResolve(isConfirmed); confirmResolve = null; }
@@ -399,7 +503,7 @@
                     const opt = document.createElement('option');
                     opt.value = u; opt.textContent = u;
                     select.appendChild(opt);
-                }
+                 }
             });
             if(select.options.length === 0) {
                 openConfirmModal("Aviso", "Não há outros desenhistas cadastrados para receber.", true);
@@ -418,7 +522,6 @@
                 
                 if (!project.previousOwners) project.previousOwners = [];
                 if (!project.previousOwners.includes(currentUser)) project.previousOwners.push(currentUser);
-                
                 const oldOwner = project.owner;
                 project.owner = selectedUser;
                 
@@ -454,13 +557,13 @@
         }
 
         function addUser() {
-            const input = document.getElementById('new-user-name'); const name = input.value.trim();
+            const input = document.getElementById('new-user-name');
+            const name = input.value.trim();
             if (name && !appData.users.includes(name)) { appData.users.push(name); saveData(); input.value = ''; }
         }
 
         async function handleLoginClick(user) {
             if (!appData.passwords) appData.passwords = {};
-
             if (!appData.passwords[user]) {
                 const newPass = await openPasswordModal("Primeiro Acesso", `Crie uma senha para proteger o perfil de ${user}:`);
                 if (newPass !== null && newPass.trim() !== "") { appData.passwords[user] = newPass; saveData(); proceedLogin(user); } 
@@ -483,7 +586,7 @@
             document.getElementById('view-dashboard').classList.remove('hidden');
             document.getElementById('dashboard-title').textContent = `Projetos: ${user}`;
             document.getElementById('search-input').value = '';
-            switchDraftsmanTab('andamento'); 
+            switchDraftsmanTab('andamento');
         }
 
         function logout() {
@@ -491,7 +594,7 @@
             document.getElementById('view-dashboard').classList.add('hidden');
             document.getElementById('view-profiles').classList.remove('hidden');
             if(managerCurrentTab === 'graficos'){
-                switchManagerTab('andamento'); 
+                switchManagerTab('andamento');
             } else {
                 renderGlobalFeed();
             }
@@ -499,12 +602,13 @@
 
         // ---------- FUNÇÕES DO DESENHISTA ----------
         async function addProject() {
-            const input = document.getElementById('new-project-name'); const name = input.value.trim();
+            const input = document.getElementById('new-project-name');
+            const name = input.value.trim();
             if (name) {
                 const obs = await openModal("Novo Projeto na Fila", `Adicionando à etapa: "${STAGES[0]}"`, "Por que não vai iniciar agora?");
                 if (obs !== null) {
                     const newProject = {
-                        id: Date.now().toString(), owner: currentUser, name: name, stageIndex: 0, isImpeded: false, previousOwners: [],
+                        id: Date.now().toString(), owner: currentUser, name: name, stageIndex: 0, isImpeded: false, reworkType: null, previousOwners: [],
                         history: [{ stage: STAGES[0], obs: obs || "Sem observação", date: new Date().toLocaleString('pt-BR'), author: currentUser }] 
                     };
                     appData.projects.unshift(newProject); saveData(); 
@@ -525,7 +629,8 @@
         }
 
         async function updateStage(id, selectElement) {
-            const project = appData.projects.find(p => p.id === id); const newIndex = parseInt(selectElement.value);
+            const project = appData.projects.find(p => p.id === id);
+            const newIndex = parseInt(selectElement.value);
             if (project.stageIndex !== newIndex) {
                 const obs = await openModal("Avançar Etapa", `Movendo para: "${STAGES[newIndex]}"`, "Adicione uma observação (Opcional):");
                 if (obs === null) selectElement.value = project.stageIndex;
@@ -561,7 +666,7 @@
                     project.history.push({ stage: STAGES[0], obs: "Histórico reiniciado", date: new Date().toLocaleString('pt-BR'), author: currentUser });
                     project.stageIndex = 0;
                 } else {
-                    const firstRealStage = project.history.find(h => h.stage !== "📢 REGISTRO EXTRA" && h.stage !== "🔴 IMPEDIMENTO / PAUSADO" && h.stage !== "🟢 Retomado após Impedimento" && h.stage !== "📢 PROJETO TRANSFERIDO");
+                    const firstRealStage = project.history.find(h => h.stage !== "📢 REGISTRO EXTRA" && h.stage !== "🔴 IMPEDIMENTO / PAUSADO" && h.stage !== "🟢 Retomado após Impedimento" && h.stage !== "📢 PROJETO TRANSFERIDO" && !h.stage.includes("RETRABALHO"));
                     if (firstRealStage) project.stageIndex = STAGES.indexOf(firstRealStage.stage) !== -1 ? STAGES.indexOf(firstRealStage.stage) : project.stageIndex;
                 }
                 saveData();
@@ -619,16 +724,19 @@
                 const matchesTab = managerCurrentTab === 'andamento' ? p.stageIndex !== 12 : p.stageIndex === 12;
                 return matchesSearch && matchesTab;
             });
-
+            
             if (filteredProjects.length === 0) {
                 container.style.display = 'block';
                 container.innerHTML = `<p style="text-align:center; color:gray; font-size: 1.1rem; margin-top: 20px;">Nenhum projeto encontrado nesta aba.</p>`;
                 return;
             } else container.style.display = 'grid';
-
+            
             filteredProjects.forEach(project => {
                 const isCompleted = project.stageIndex === 12;
-                const cardClass = isCompleted ? 'completed' : (project.isImpeded ? 'impediment' : '');
+                let cardClass = isCompleted ? 'completed' : (project.isImpeded ? 'impediment' : '');
+                if (project.reworkType === 'interno' && !isCompleted) cardClass += ' rework-interno';
+                if (project.reworkType === 'externo' && !isCompleted) cardClass += ' rework-externo';
+                
                 const card = document.createElement('div'); card.className = `project-card ${cardClass}`;
                 const progressPercent = Math.round((project.stageIndex / (STAGES.length - 1)) * 100);
 
@@ -636,15 +744,24 @@
                 project.history.forEach((item, index) => {
                     const authorName = item.author ? item.author : project.owner; 
                     const editableDate = `<span class="timeline-date editable-date" onclick="openDateModal('${project.id}', ${index})" title="Editar data retroativa">${item.date} ✏️</span>`;
-                    historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${item.stage === '📢 REGISTRO EXTRA' ? 'color: #9333ea;' : ''}">${item.stage}</span></div><div class="timeline-obs"><span>↳ Obs: ${item.obs} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span>${editableDate}</div></div>`;
+                    
+                    let stageColor = '';
+                    if(item.stage === '📢 REGISTRO EXTRA' || item.stage === '📢 PROJETO TRANSFERIDO') stageColor = 'color: #9333ea;';
+                    if(item.stage.includes('RETRABALHO')) stageColor = 'color: #ea580c;';
+                    
+                    historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${stageColor}">${item.stage}</span></div><div class="timeline-obs"><span>↳ Obs: ${item.obs} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span>${editableDate}</div></div>`;
                 });
+
+                let statusBadge = project.isImpeded ? '⚠️ PAUSADO / IMPEDIDO' : (isCompleted ? '✅ CONCLUÍDO' : '▶ ' + STAGES[project.stageIndex]);
+                if (!isCompleted && project.reworkType === 'interno') statusBadge = '🔄 REVISÃO: ERRO INTERNO';
+                if (!isCompleted && project.reworkType === 'externo') statusBadge = '🔄 REVISÃO: ALTERAÇÃO CLIENTE';
 
                 card.innerHTML = `
                     <div class="project-header">
                         <span class="draftsman-badge">👤 Atual: ${project.owner}</span>
                         <h2 style="font-size: 1.2rem; margin-bottom: 5px;">${project.name}</h2>
-                        <div style="font-weight: bold; color: ${isCompleted ? 'var(--success)' : (project.isImpeded ? 'var(--danger)' : 'var(--primary)')}; margin-top: 10px;">
-                            ${project.isImpeded ? '⚠️ PAUSADO / IMPEDIDO' : (isCompleted ? '✅ CONCLUÍDO' : '▶ ' + STAGES[project.stageIndex])}
+                        <div style="font-weight: bold; color: ${isCompleted ? 'var(--success)' : (project.isImpeded ? 'var(--danger)' : (project.reworkType ? '#9333ea' : 'var(--primary)'))}; margin-top: 10px;">
+                            ${statusBadge}
                         </div>
                     </div>
                     <div class="progress-container"><div class="progress-bar" style="width: ${progressPercent}%; background-color: ${isCompleted ? 'var(--success)' : (project.isImpeded ? 'var(--warning)' : 'var(--primary)')}"></div></div>
@@ -687,6 +804,8 @@
             let timeAcc = {};
             STAGES.forEach(s => timeAcc[s] = 0);
             timeAcc["Pausado / Impedido"] = 0;
+            timeAcc["Retrabalho: Erro Interno"] = 0;
+            timeAcc["Retrabalho: Alteração Cliente"] = 0;
 
             projectsToAnalyze.forEach(p => {
                 let sortedHistory = [...p.history].reverse(); 
@@ -706,8 +825,12 @@
                         currentRealStage = event.stage;
                     } else if (event.stage === "🔴 IMPEDIMENTO / PAUSADO") {
                         currentStatus = "Pausado / Impedido";
-                    } else if (event.stage === "🟢 Retomado após Impedimento" || event.stage === "📢 PROJETO TRANSFERIDO") {
+                    } else if (event.stage === "🟢 Retomado após Impedimento" || event.stage === "📢 PROJETO TRANSFERIDO" || event.stage === "✅ RETRABALHO CONCLUÍDO") {
                         currentStatus = currentRealStage || STAGES[0];
+                    } else if (event.stage.includes("⚠️ RETRABALHO INICIADO - INTERNO")) {
+                        currentStatus = "Retrabalho: Erro Interno";
+                    } else if (event.stage.includes("⚠️ RETRABALHO INICIADO - EXTERNO")) {
+                        currentStatus = "Retrabalho: Alteração Cliente";
                     }
                     
                     lastTimestamp = eventTime;
@@ -751,6 +874,14 @@
         function drawChart(labels, barValues, lineValues) {
             const ctx = document.getElementById('paretoChart').getContext('2d');
             if (currentChart) currentChart.destroy(); 
+            
+            // Define cores dinâmicas baseadas nos labels do Pareto
+            let bgColors = labels.map(label => {
+                if (label.includes("Erro Interno")) return '#9333ea'; // Roxo
+                if (label.includes("Alteração Clie")) return '#ea580c'; // Laranja
+                if (label.includes("Pausado / Impedido")) return '#f59e0b'; // Amarelo
+                return '#2563eb'; // Azul padrão
+            });
 
             currentChart = new Chart(ctx, {
                 type: 'bar',
@@ -771,7 +902,7 @@
                         {
                             label: 'Tempo Retido (Horas)',
                             data: barValues,
-                            backgroundColor: '#2563eb',
+                            backgroundColor: bgColors,
                             yAxisID: 'y',
                             borderRadius: 4
                         }
@@ -852,7 +983,10 @@
                 const isCompleted = project.stageIndex === 12;
                 const isOwner = project.owner === currentUser; 
                 
-                const cardClass = isCompleted ? 'completed' : (project.isImpeded ? 'impediment' : '');
+                let cardClass = isCompleted ? 'completed' : (project.isImpeded ? 'impediment' : '');
+                if (project.reworkType === 'interno' && !isCompleted) cardClass += ' rework-interno';
+                if (project.reworkType === 'externo' && !isCompleted) cardClass += ' rework-externo';
+
                 const card = document.createElement('div'); card.className = `project-card ${cardClass}`;
                 const progressPercent = Math.round((project.stageIndex / (STAGES.length - 1)) * 100);
 
@@ -865,17 +999,31 @@
                     
                     const editableDate = `<span class="timeline-date editable-date" onclick="openDateModal('${project.id}', ${index})" title="Editar data retroativa">${item.date} ✏️</span>`;
                     
-                    historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${item.stage === '📢 REGISTRO EXTRA' ? 'color: #9333ea;' : ''}">${item.stage}</span><div class="timeline-actions">${editBtns}</div></div><div class="timeline-obs"><span>↳ Obs: ${item.obs} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span>${editableDate}</div></div>`;
+                    let stageColor = '';
+                    if(item.stage === '📢 REGISTRO EXTRA' || item.stage === '📢 PROJETO TRANSFERIDO') stageColor = 'color: #9333ea;';
+                    if(item.stage.includes('RETRABALHO')) stageColor = 'color: #ea580c;';
+                    
+                    historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${stageColor}">${item.stage}</span><div class="timeline-actions">${editBtns}</div></div><div class="timeline-obs"><span>↳ Obs: ${item.obs} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span>${editableDate}</div></div>`;
                 });
 
-                const disabledSelect = (project.isImpeded || !isOwner) ? 'disabled' : '';
+                const disabledSelect = (project.isImpeded || project.reworkType || !isOwner) ? 'disabled' : '';
+                
+                let btnReworkColor = '#d946ef'; 
+                let btnReworkText = '🔄 Revisão';
+                if (project.reworkType === 'interno') { btnReworkColor = '#9333ea'; btnReworkText = '✅ Fim Revisão'; }
+                if (project.reworkType === 'externo') { btnReworkColor = '#ea580c'; btnReworkText = '✅ Fim Revisão'; }
                 
                 const mainActionBtns = isOwner ? `
                     <button class="secondary" onclick="registerEvent('${project.id}')" title="Registrar Acontecimento">📝 Fato</button>
                     <button class="warning" onclick="openTransferModal('${project.id}')" style="background:#8b5cf6; color:white;">🔄 Transferir</button>
                     <button class="${project.isImpeded ? 'success' : 'warning'}" onclick="toggleImpediment('${project.id}')">${project.isImpeded ? '▶ Retomar' : '⏸ Pausar'}</button>
+                    <button onclick="toggleRework('${project.id}')" style="background-color: ${btnReworkColor}; color: white;">${btnReworkText}</button>
                     <button class="danger" onclick="deleteProject('${project.id}')">Excluir</button>
                 ` : '';
+
+                let statusBadge = project.isImpeded ? '⚠️ PAUSADO / IMPEDIDO' : (isCompleted ? '✅ CONCLUÍDO' : '▶ ' + STAGES[project.stageIndex]);
+                if (!isCompleted && project.reworkType === 'interno') statusBadge = '🔄 REVISÃO: ERRO INTERNO';
+                if (!isCompleted && project.reworkType === 'externo') statusBadge = '🔄 REVISÃO: ALTERAÇÃO CLIENTE';
 
                 card.innerHTML = `
                     <div class="project-header">
@@ -906,6 +1054,8 @@
             doc.setFont("helvetica", "normal"); doc.setTextColor(80, 80, 80); doc.text(`Status Atual:`, 20, 39);
             
             if (project.stageIndex === 12) { doc.setTextColor(22, 163, 74); doc.text("CONCLUIDO", 45, 39); } 
+            else if (project.reworkType === 'interno') { doc.setFont("helvetica", "bold"); doc.setTextColor(147, 51, 234); doc.text("REVISAO: ERRO INTERNO", 45, 39); }
+            else if (project.reworkType === 'externo') { doc.setFont("helvetica", "bold"); doc.setTextColor(234, 88, 12); doc.text("REVISAO: ALTERACAO CLIENTE", 45, 39); }
             else { doc.setFont("helvetica", "bold"); doc.setTextColor(project.isImpeded ? 220 : 22, project.isImpeded ? 38 : 163, project.isImpeded ? 38 : 74); doc.text(project.isImpeded ? "PAUSADO / IMPEDIDO" : sanitizeForPDF(STAGES[project.stageIndex]), 45, 39); }
             doc.setDrawColor(220, 220, 220); doc.line(20, 45, 190, 45);
 
@@ -915,6 +1065,7 @@
                 const stepNum = project.history.length - index;
                 doc.setFontSize(11); doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold");
                 if(item.stage === "📢 REGISTRO EXTRA" || item.stage === "📢 PROJETO TRANSFERIDO") doc.setTextColor(147, 51, 234); 
+                if(item.stage.includes("RETRABALHO")) doc.setTextColor(234, 88, 12); 
                 
                 doc.text(`${stepNum}. ${sanitizeForPDF(item.stage)}`, 20, yOffset);
                 doc.setFontSize(9); doc.setTextColor(150, 150, 150); doc.setFont("helvetica", "normal"); doc.text(item.date, 190, yOffset, { align: "right" });
@@ -929,7 +1080,6 @@
                 yOffset += boxHeight + 10;
             });
             
-            // Renderiza na memória e abre em nova guia
             const pdfBlob = doc.output('blob');
             window.open(URL.createObjectURL(pdfBlob), '_blank');
         }
@@ -963,6 +1113,8 @@
             else {
                 projectList.forEach((p) => {
                     const isImpeded = p.isImpeded; const isCompleted = p.stageIndex === 12;
+                    const isReworkInternal = p.reworkType === 'interno';
+                    const isReworkExternal = p.reworkType === 'externo';
                     
                     const realEvent = p.history.find(h => h.stage !== "📢 REGISTRO EXTRA" && h.stage !== "📢 PROJETO TRANSFERIDO"); 
                     const obsToShow = realEvent ? realEvent.obs : "Sem observacao";
@@ -976,6 +1128,9 @@
                     doc.setFillColor(249, 250, 251); doc.setDrawColor(229, 231, 235); doc.roundedRect(20, yOffset, 170, cardHeight, 2, 2, 'FD');
                     
                     let barColor = isCompleted ? [22, 163, 74] : (isImpeded ? [220, 38, 38] : [37, 99, 235]); 
+                    if (!isCompleted && isReworkInternal) barColor = [147, 51, 234];
+                    if (!isCompleted && isReworkExternal) barColor = [234, 88, 12];
+                    
                     doc.setFillColor(barColor[0], barColor[1], barColor[2]); doc.rect(20, yOffset, 3, cardHeight, 'F'); 
                     
                     doc.setFontSize(12); doc.setTextColor(31, 41, 55); doc.setFont("helvetica", "bold"); doc.text(sanitizeForPDF(p.name), 28, yOffset + 8);
@@ -984,6 +1139,8 @@
                     doc.setFontSize(10); doc.setFont("helvetica", "bold");
                     if (isCompleted) { doc.setTextColor(22, 163, 74); doc.text("CONCLUIDO", 28, yOffset + 15); } 
                     else if (isImpeded) { doc.setTextColor(220, 38, 38); doc.text("AVISO: PAUSADO / IMPEDIDO", 28, yOffset + 15); } 
+                    else if (isReworkInternal) { doc.setTextColor(147, 51, 234); doc.text("REVISAO: ERRO INTERNO", 28, yOffset + 15); }
+                    else if (isReworkExternal) { doc.setTextColor(234, 88, 12); doc.text("REVISAO: ALTERACAO CLIENTE", 28, yOffset + 15); }
                     else { doc.setTextColor(37, 99, 235); doc.text(`ETAPA: ${sanitizeForPDF(STAGES[p.stageIndex]).toUpperCase()}`, 28, yOffset + 15); }
                     
                     doc.setFontSize(9); doc.setFont("helvetica", "italic"); doc.setTextColor(107, 114, 128);
@@ -993,7 +1150,6 @@
                 });
             }
             
-            // Renderiza na memória e abre em nova guia
             const pdfBlob = doc.output('blob');
             window.open(URL.createObjectURL(pdfBlob), '_blank');
         }

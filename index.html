@@ -100,7 +100,6 @@
         <p style="color: var(--text-light);">Isso evita sobrescrever projetos.</p>
     </div>
 
-    <!-- Modais do sistema -->
     <div id="date-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <h3 class="modal-title">📅 Editar Data do Evento</h3>
@@ -178,13 +177,11 @@
     </div>
 
     <div class="container">
-        <!-- TELA INICIAL (GESTÃO / PERFIS) -->
         <div id="view-profiles">
             <div class="header">
                 <h1>👥 Selecionar Desenhista</h1>
                 <p>Escolha o perfil para acessar a área de trabalho</p>
                 
-                <!-- PAINEL DE BACKUP BLINDADO -->
                 <div style="background: #e5e7eb; padding: 15px; border-radius: 8px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 15px;">
                     <button class="info" onclick="exportBackup()">💾 Baixar Backup (.JSON)</button>
                     <button class="warning" onclick="document.getElementById('import-file').click()">📂 Importar Backup</button>
@@ -314,12 +311,20 @@
         let activeEditHistoryIndex = null;
         let reworkProjectId = null;
 
+        let firebaseSincronizado = false; // TRAVA DE SEGURANÇA MÁXIMA
+        let maiorNumeroDeProjetosVistos = 0; // MEMÓRIA CONTRA BUGS VISUAIS
+
         // ---------- CONEXÃO EM TEMPO REAL ----------
         docRef.onSnapshot((doc) => {
             if (doc.exists) {
                 appData = doc.data();
+                firebaseSincronizado = true; // O aperto de mão aconteceu!
             } else {
-                docRef.set(appData);
+                // Só cria o banco se for literalmente a primeira vez na história
+                if(!firebaseSincronizado) {
+                    docRef.set(appData);
+                    firebaseSincronizado = true;
+                }
             }
             
             document.getElementById('global-loader').style.display = 'none';
@@ -341,19 +346,24 @@
             document.getElementById('global-loader').innerHTML = `<h2 style="color: red;">Erro de Conexão</h2><p>Falha ao conectar com o banco de dados.</p>`;
         });
 
-        let maiorNumeroDeProjetosVistos = 0; // Memória da segurança
-
         function saveData() { 
-            // 1. Atualiza nossa memória do maior número de projetos já vistos na tela
+            // TRAVA 1: O APERTO DE MÃO (Impede que celulares sem internet ou carregamentos pela metade apaguem a nuvem)
+            if (!firebaseSincronizado) {
+                console.error("🚨 BLOQUEIO: Tentativa de salvar antes de conectar com o Google.");
+                alert("Aguarde o sistema sincronizar com a nuvem antes de fazer alterações. Verifique sua internet.");
+                return;
+            }
+
+            // Atualiza nossa memória do maior número de projetos já vistos na tela
             if (appData && appData.projects && appData.projects.length > maiorNumeroDeProjetosVistos) {
                 maiorNumeroDeProjetosVistos = appData.projects.length;
             }
 
-            // 2. A TRAVA DE SEGURANÇA: Se tentar salvar um número muito menor de projetos de uma vez, bloqueia!
+            // TRAVA 2: O ANTIVÍRUS DE QUEDA (Impede que um bug visual apague os projetos)
             if (appData && appData.projects && appData.projects.length === 0 && maiorNumeroDeProjetosVistos > 0) {
                 console.error("🚨 BLOQUEIO DE SEGURANÇA: Tentativa de sobrescrever o banco com VAZIO!");
-                alert("ERRO CRÍTICO EVITADO: Seu navegador tentou apagar o banco de dados da nuvem. O sistema bloqueou a ação para proteger seus projetos. Por favor, atualize a página.");
-                return; // O 'return' cancela a função e impede o salvamento fatal
+                alert("ERRO CRÍTICO EVITADO: Seu navegador tentou apagar o banco de dados da nuvem. O sistema bloqueou a ação para proteger seus projetos. Por favor, atualize a página (F5).");
+                return; 
             }
 
             // Se passou na segurança, salva normalmente na nuvem

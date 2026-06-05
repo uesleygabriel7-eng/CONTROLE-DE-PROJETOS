@@ -32,6 +32,7 @@
         button.icon-btn { background: none; border: none; color: var(--text-light); padding: 2px 6px; font-size: 1rem; cursor: pointer; border-radius: 4px; }
         button.icon-btn:hover { background: var(--border); color: var(--text); }
         input[type="text"], input[type="password"], select, textarea { padding: 10px; border: 1px solid var(--border); border-radius: 5px; width: 100%; box-sizing: border-box; margin-bottom: 10px; font-size: 0.95rem; font-family: inherit; }
+        input[type="datetime-local"] { padding: 10px; border: 1px solid var(--border); border-radius: 5px; font-size: 1rem; width: 100%; box-sizing: border-box; }
         .search-bar input { margin-bottom: 0; }
         select { font-weight: 500; color: var(--primary); cursor: pointer; }
         .profiles-grid { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; margin-bottom: 20px; }
@@ -60,6 +61,8 @@
         .timeline-top { display: flex; justify-content: space-between; font-weight: bold; align-items: center;}
         .timeline-obs { color: #4b5563; margin-top: 4px; font-style: italic; display: flex; justify-content: space-between; align-items: flex-end; }
         .timeline-date { color: var(--text-light); font-weight: normal; font-size: 0.8rem; white-space: nowrap; margin-left: 10px; }
+        .editable-date { cursor: pointer; border-bottom: 1px dashed var(--text-light); transition: color 0.2s; }
+        .editable-date:hover { color: var(--primary); border-bottom-color: var(--primary); }
         .timeline-actions { display: flex; gap: 5px; }
         .actions { margin-top: 15px; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
         .actions button { flex: 1; min-width: 80px; padding: 6px; font-size: 0.85rem;}
@@ -85,6 +88,18 @@
         <div class="spinner"></div>
         <h2 style="color: var(--primary); margin: 0;">Sincronizando com a Nuvem...</h2>
         <p style="color: var(--text-light);">Isso evita sobrescrever projetos.</p>
+    </div>
+
+    <div id="date-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 class="modal-title">📅 Editar Data do Evento</h3>
+            <p class="modal-desc">Selecione a data retroativa (Isso vai reajustar o Gráfico de Pareto automaticamente):</p>
+            <input type="datetime-local" id="date-modal-input">
+            <div class="modal-buttons">
+                <button class="secondary" onclick="closeDateModal(false)">Cancelar</button>
+                <button onclick="closeDateModal(true)">Salvar Data</button>
+            </div>
+        </div>
     </div>
 
     <div id="custom-modal" class="modal-overlay hidden">
@@ -176,7 +191,7 @@
                     <strong style="white-space: nowrap;">Analisar:</strong>
                     <select id="graph-filter-select" onchange="renderGraph()" style="margin-bottom: 0; max-width: 400px;">
                         <option value="ALL">Geral (Todos os Projetos do Sistema)</option>
-                        </select>
+                    </select>
                 </div>
                 <div class="chart-container">
                     <canvas id="paretoChart"></canvas>
@@ -241,6 +256,9 @@
 
         let modalResolve = null, confirmResolve = null, passwordResolve = null;
         let transferProjectId = null; 
+        
+        let activeEditProjectId = null;
+        let activeEditHistoryIndex = null;
 
         // ---------- CONEXÃO EM TEMPO REAL ----------
         docRef.onSnapshot((doc) => {
@@ -280,6 +298,9 @@
             document.getElementById('pwd-modal-input').addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') { e.preventDefault(); closePasswordModal(true); }
             });
+            document.getElementById('date-modal-input').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') { e.preventDefault(); closeDateModal(true); }
+            });
             document.getElementById('new-user-name').addEventListener('keydown', function(e) { if (e.key === 'Enter') addUser(); });
             document.getElementById('new-project-name').addEventListener('keydown', function(e) { if (e.key === 'Enter') addProject(); });
         });
@@ -297,6 +318,52 @@
             if (modalResolve) { modalResolve(isConfirmed ? document.getElementById('modal-input').value : null); modalResolve = null; }
         }
 
+        // ---------- SISTEMA DE EDIÇÃO DE DATAS ----------
+        function dateToLocalString(dateStr) {
+            try {
+                let cleanStr = dateStr.replace(',', '').trim();
+                let [dPart, tPart] = cleanStr.split(' ');
+                let [day, month, year] = dPart.split('/');
+                let [hour, min] = tPart ? tPart.split(':') : ['00', '00'];
+                if (!year || !month || !day) return "";
+                return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
+            } catch(e) { return ""; }
+        }
+
+        function localStringToDate(localStr) {
+            if(!localStr) return new Date().toLocaleString('pt-BR');
+            let [datePart, timePart] = localStr.split('T');
+            let [year, month, day] = datePart.split('-');
+            let [hour, min] = timePart ? timePart.split(':') : ['00', '00'];
+            return `${day}/${month}/${year}, ${hour}:${min}:00`;
+        }
+
+        function openDateModal(projectId, historyIndex) {
+            activeEditProjectId = projectId;
+            activeEditHistoryIndex = historyIndex;
+            const project = appData.projects.find(p => p.id === projectId);
+            const currentStr = project.history[historyIndex].date;
+            
+            document.getElementById('date-modal').classList.remove('hidden');
+            document.getElementById('date-modal-input').value = dateToLocalString(currentStr);
+            document.getElementById('date-modal-input').focus();
+        }
+
+        function closeDateModal(isConfirmed) {
+            document.getElementById('date-modal').classList.add('hidden');
+            if (isConfirmed && activeEditProjectId !== null) {
+                const newVal = document.getElementById('date-modal-input').value;
+                if(newVal) {
+                    const project = appData.projects.find(p => p.id === activeEditProjectId);
+                    project.history[activeEditHistoryIndex].date = localStringToDate(newVal);
+                    saveData();
+                }
+            }
+            activeEditProjectId = null;
+            activeEditHistoryIndex = null;
+        }
+
+        // ---------- SISTEMA DE SENHAS E CONFIRMAÇÕES ----------
         function openPasswordModal(title, desc) {
             document.getElementById('password-modal').classList.remove('hidden');
             document.getElementById('pwd-modal-title').textContent = title;
@@ -566,9 +633,10 @@
                 const progressPercent = Math.round((project.stageIndex / (STAGES.length - 1)) * 100);
 
                 let historyHtml = '';
-                project.history.forEach((item) => {
+                project.history.forEach((item, index) => {
                     const authorName = item.author ? item.author : project.owner; 
-                    historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${item.stage === '📢 REGISTRO EXTRA' ? 'color: #9333ea;' : ''}">${item.stage}</span></div><div class="timeline-obs"><span>↳ Obs: ${item.obs} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span><span class="timeline-date">${item.date}</span></div></div>`;
+                    const editableDate = `<span class="timeline-date editable-date" onclick="openDateModal('${project.id}', ${index})" title="Editar data retroativa">${item.date} ✏️</span>`;
+                    historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${item.stage === '📢 REGISTRO EXTRA' ? 'color: #9333ea;' : ''}">${item.stage}</span></div><div class="timeline-obs"><span>↳ Obs: ${item.obs} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span>${editableDate}</div></div>`;
                 });
 
                 card.innerHTML = `
@@ -795,7 +863,9 @@
                     const authorName = item.author ? item.author : project.owner;
                     const editBtns = isOwner ? `<button class="icon-btn" onclick="editHistoryItem('${project.id}', ${index})" title="Editar Observação">✏️</button><button class="icon-btn" onclick="deleteHistoryItem('${project.id}', ${index})" title="Apagar Etapa/Registro">🗑️</button>` : '';
                     
-                    historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${item.stage === '📢 REGISTRO EXTRA' ? 'color: #9333ea;' : ''}">${item.stage}</span><div class="timeline-actions">${editBtns}</div></div><div class="timeline-obs"><span>↳ Obs: ${item.obs} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span><span class="timeline-date">${item.date}</span></div></div>`;
+                    const editableDate = `<span class="timeline-date editable-date" onclick="openDateModal('${project.id}', ${index})" title="Editar data retroativa">${item.date} ✏️</span>`;
+                    
+                    historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${item.stage === '📢 REGISTRO EXTRA' ? 'color: #9333ea;' : ''}">${item.stage}</span><div class="timeline-actions">${editBtns}</div></div><div class="timeline-obs"><span>↳ Obs: ${item.obs} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span>${editableDate}</div></div>`;
                 });
 
                 const disabledSelect = (project.isImpeded || !isOwner) ? 'disabled' : '';

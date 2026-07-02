@@ -36,7 +36,7 @@
         .search-bar input { margin-bottom: 0; }
         select { font-weight: 500; color: var(--primary); cursor: pointer; }
         .profiles-grid { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; margin-bottom: 20px; }
-        .profile-card { background: var(--card); padding: 20px 40px; border-radius: 10px; cursor: pointer; border: 2px solid transparent; box-shadow: 0 4px 6px rgba(0,0,0,0.05); font-size: 1.2rem; font-weight: bold; text-align: center; transition: 0.2s; }
+        .profile-card { background: var(--card); padding: 20px 40px; border-radius: 10px; cursor: pointer; border: 2px solid transparent; box-shadow: 0 4px 6px rgba(0,0,0,0.05); font-size: 1.2rem; font-weight: bold; text-align: center; transition: 0.2s; display: flex; align-items: center; justify-content: center;}
         .profile-card:hover { border-color: var(--primary); transform: translateY(-2px); }
         .top-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
         .top-bar-actions { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
@@ -47,17 +47,19 @@
         .tab-btn:hover:not(.active) { color: var(--text); background: var(--card); }
         
         .kpi-container { display: flex; gap: 15px; margin-top: 20px; flex-wrap: wrap; }
-        .kpi-card { background: var(--card); padding: 15px; border-radius: 10px; flex: 1; min-width: 200px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-bottom: 4px solid var(--primary); }
-        .kpi-card h4 { margin: 0 0 5px 0; color: var(--text-light); font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.5px;}
+        .kpi-card { background: var(--card); padding: 15px; border-radius: 10px; flex: 1; min-width: 180px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-bottom: 4px solid var(--primary); }
+        .kpi-card h4 { margin: 0 0 5px 0; color: var(--text-light); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;}
         .kpi-card .kpi-value { font-size: 1.8rem; font-weight: bold; color: var(--text); margin: 0;}
-        .kpi-card.purple { border-bottom-color: #9333ea; }
+        .kpi-card.red { border-bottom-color: #dc2626; }
+        .kpi-card.yellow { border-bottom-color: #eab308; }
         .kpi-card.orange { border-bottom-color: #ea580c; }
         
         .projects-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; align-items: start; }
         .project-card { background-color: var(--card); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid var(--border); border-left: 6px solid var(--primary); display: flex; flex-direction: column; transition: all 0.3s;}
         .project-card.impediment { border-left-color: var(--warning); background-color: #fffbeb; }
         .project-card.completed { border-left-color: var(--success); }
-        .project-card.rework-interno { border-left-color: #9333ea; background-color: #faf5ff; }
+        .project-card.rework-interno-grave { border-left-color: #dc2626; background-color: #fef2f2; }
+        .project-card.rework-interno-leve { border-left-color: #eab308; background-color: #fefce8; }
         .project-card.rework-externo { border-left-color: #ea580c; background-color: #fff7ed; }
         
         .project-header { margin-bottom: 15px; }
@@ -117,7 +119,8 @@
             <h3 class="modal-title">🔄 Classificar Revisão</h3>
             <p class="modal-desc">Selecione a origem do retrabalho para registrar no Gráfico de Pareto:</p>
             <select id="rework-type-select" style="margin-bottom: 15px;">
-                <option value="INTERNO">🔴 Erro Interno (Melhorar Qualidade/Processos)</option>
+                <option value="INTERNO_GRAVE">🔴 Erro Interno GRAVE (Técnico/Engenharia/Fábrica)</option>
+                <option value="INTERNO_LEVE">🟡 Erro Interno LEVE (Administrativo/Digitação/Capa)</option>
                 <option value="EXTERNO">🟠 Solicitação Externa (Alteração à pedido do Cliente)</option>
             </select>
             <textarea id="rework-obs-input" rows="3" placeholder="Descreva o que precisa ser alterado/refeito..."></textarea>
@@ -206,6 +209,9 @@
                         <p style="margin: 5px 0 0 0; color: var(--text-light); font-size: 0.9rem;">Acompanhamento corporativo em tempo real e análise de gargalos.</p>
                     </div>
                     <div class="top-bar-actions" id="manager-actions">
+                        <select id="manager-year-select" onchange="switchManagerTab(managerCurrentTab)" style="margin-bottom: 0; min-width: 130px;" title="Filtrar por Ano">
+                            <option value="ALL">Todos os Anos</option>
+                        </select>
                         <div class="search-bar"><input type="text" id="manager-search-input" onkeyup="renderGlobalFeed()" placeholder="🔍 Buscar projeto..."></div>
                         <button class="manager-btn" onclick="exportManagerReport()">📊 PDF da Aba Atual</button>
                     </div>
@@ -237,12 +243,16 @@
                         <h4>Total de Projetos</h4>
                         <p class="kpi-value" id="kpi-total">0</p>
                     </div>
-                    <div class="kpi-card purple">
-                        <h4>Taxa de Erro Interno</h4>
-                        <p class="kpi-value" id="kpi-internal">0%</p>
+                    <div class="kpi-card red">
+                        <h4>Erro Interno (Grave)</h4>
+                        <p class="kpi-value" id="kpi-internal-grave">0%</p>
+                    </div>
+                    <div class="kpi-card yellow">
+                        <h4>Erro Interno (Leve)</h4>
+                        <p class="kpi-value" id="kpi-internal-leve">0%</p>
                     </div>
                     <div class="kpi-card orange">
-                        <h4>Alteração de Clientes</h4>
+                        <h4>Alteração Cliente</h4>
                         <p class="kpi-value" id="kpi-external">0%</p>
                     </div>
                 </div>
@@ -311,16 +321,15 @@
         let activeEditHistoryIndex = null;
         let reworkProjectId = null;
 
-        let firebaseSincronizado = false; // TRAVA DE SEGURANÇA MÁXIMA
-        let maiorNumeroDeProjetosVistos = 0; // MEMÓRIA CONTRA BUGS VISUAIS
+        let firebaseSincronizado = false;
+        let maiorNumeroDeProjetosVistos = 0;
 
         // ---------- CONEXÃO EM TEMPO REAL ----------
         docRef.onSnapshot((doc) => {
             if (doc.exists) {
                 appData = doc.data();
-                firebaseSincronizado = true; // O aperto de mão aconteceu!
+                firebaseSincronizado = true;
             } else {
-                // Só cria o banco se for literalmente a primeira vez na história
                 if(!firebaseSincronizado) {
                     docRef.set(appData);
                     firebaseSincronizado = true;
@@ -332,6 +341,7 @@
             if (currentUser) {
                 renderProjects();
             } else {
+                populateYearSelect(); // Popula os anos disponíveis
                 renderProfiles();
                 updateKPIs();
                 if(managerCurrentTab === 'graficos'){
@@ -347,40 +357,32 @@
         });
 
         function saveData() { 
-            // TRAVA 1: O APERTO DE MÃO (Impede que celulares sem internet ou carregamentos pela metade apaguem a nuvem)
             if (!firebaseSincronizado) {
-                console.error("🚨 BLOQUEIO: Tentativa de salvar antes de conectar com o Google.");
-                alert("Aguarde o sistema sincronizar com a nuvem antes de fazer alterações. Verifique sua internet.");
+                console.error("🚨 BLOQUEIO: Tentativa de salvar antes de conectar com a nuvem.");
+                alert("Aguarde o sistema sincronizar antes de fazer alterações. Verifique sua internet.");
                 return;
             }
 
-            // Atualiza nossa memória do maior número de projetos já vistos na tela
             if (appData && appData.projects && appData.projects.length > maiorNumeroDeProjetosVistos) {
                 maiorNumeroDeProjetosVistos = appData.projects.length;
             }
 
-            // TRAVA 2: O ANTIVÍRUS DE QUEDA (Impede que um bug visual apague os projetos)
             if (appData && appData.projects && appData.projects.length === 0 && maiorNumeroDeProjetosVistos > 0) {
                 console.error("🚨 BLOQUEIO DE SEGURANÇA: Tentativa de sobrescrever o banco com VAZIO!");
-                alert("ERRO CRÍTICO EVITADO: Seu navegador tentou apagar o banco de dados da nuvem. O sistema bloqueou a ação para proteger seus projetos. Por favor, atualize a página (F5).");
+                alert("ERRO CRÍTICO EVITADO: Seu navegador tentou apagar o banco de dados da nuvem. O sistema bloqueou a ação. Atualize a página.");
                 return; 
             }
 
-            // Se passou na segurança, salva normalmente na nuvem
             docRef.set(appData).catch(err => { console.error("Erro ao salvar:", err); });
         }
 
         // ---------- FUNÇÕES DE BACKUP BLINDADAS ----------
-        
-        // 1. O Auto-Backup que roda a cada 5 Minutos (invisível, na memória local)
         setInterval(() => {
             if(appData && appData.projects && appData.projects.length > 0) {
                 localStorage.setItem('backup_projetos_saas', JSON.stringify(appData));
-                console.log("Auto-backup local realizado no Chrome com sucesso as " + new Date().toLocaleTimeString('pt-BR'));
             }
-        }, 300000); // 300.000 milissegundos = 5 minutos
+        }, 300000); // 5 Minutos
 
-        // 2. Restaurar Auto-Backup (Se a tela ficar vazia, aperta o botão)
         function restoreLocalBackup() {
             const localData = localStorage.getItem('backup_projetos_saas');
             if(localData) {
@@ -389,35 +391,24 @@
                         const parsedData = JSON.parse(localData);
                         if(parsedData.projects) {
                             appData = parsedData;
-                            saveData(); // Envia de volta pro Firebase para salvar a todos
+                            saveData(); 
                             alert("Banco de dados restaurado com sucesso a partir do cache local!");
                         }
-                    } catch(e) {
-                        alert("Ocorreu um erro ao ler o backup local.");
-                    }
+                    } catch(e) { alert("Ocorreu um erro ao ler o backup local."); }
                 }
-            } else {
-                alert("Nenhum auto-backup recente foi encontrado na memória do seu navegador atual.");
-            }
+            } else { alert("Nenhum auto-backup recente foi encontrado na memória do seu navegador atual."); }
         }
 
-        // 3. Exportar o Arquivo .JSON (Seu cofre físico no Pendrive)
         function exportBackup() {
-            if(!appData || !appData.projects || appData.projects.length === 0) {
-                alert("O sistema está vazio no momento. Não há dados para fazer backup.");
-                return;
-            }
+            if(!appData || !appData.projects || appData.projects.length === 0) { alert("Sistema vazio. Não há dados para backup."); return; }
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData));
             const downloadAnchorNode = document.createElement('a');
             downloadAnchorNode.setAttribute("href", dataStr);
             const dateSufix = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
             downloadAnchorNode.setAttribute("download", `backup_projetos_${dateSufix}.json`);
-            document.body.appendChild(downloadAnchorNode); 
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
+            document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove();
         }
 
-        // 4. Importar o Arquivo .JSON (Do pendrive pro sistema)
         function importBackup(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -427,32 +418,20 @@
                     const importedData = JSON.parse(e.target.result);
                     if(importedData && importedData.projects) {
                         if(confirm(`Deseja substituir todo o banco de dados da nuvem pelo conteúdo do arquivo "${file.name}"?`)) {
-                            appData = importedData;
-                            saveData(); 
-                            alert("Base de dados substituída e restaurada com sucesso!");
+                            appData = importedData; saveData(); alert("Base de dados substituída e restaurada com sucesso!");
                         }
-                    } else {
-                        alert("O arquivo selecionado não contém uma base de dados válida.");
-                    }
-                } catch(err) {
-                    alert("Erro fatal ao tentar ler o arquivo JSON.");
-                }
-                event.target.value = ''; // Limpa o input de arquivo
+                    } else { alert("Arquivo inválido."); }
+                } catch(err) { alert("Erro fatal ao tentar ler o arquivo."); }
+                event.target.value = '';
             };
             reader.readAsText(file);
         }
 
-        // ---------- EVENTOS DE TECLADO ----------
+        // ---------- EVENTOS DE TECLADO E MODAIS ----------
         document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('modal-input').addEventListener('keydown', function(e) {
-                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); closeModal(true); }
-            });
-            document.getElementById('pwd-modal-input').addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') { e.preventDefault(); closePasswordModal(true); }
-            });
-            document.getElementById('date-modal-input').addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') { e.preventDefault(); closeDateModal(true); }
-            });
+            document.getElementById('modal-input').addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); closeModal(true); } });
+            document.getElementById('pwd-modal-input').addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); closePasswordModal(true); } });
+            document.getElementById('date-modal-input').addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); closeDateModal(true); } });
             document.getElementById('new-user-name').addEventListener('keydown', function(e) { if (e.key === 'Enter') addUser(); });
             document.getElementById('new-project-name').addEventListener('keydown', function(e) { if (e.key === 'Enter') addProject(); });
         });
@@ -471,7 +450,7 @@
             if (modalResolve) { modalResolve(isConfirmed ? document.getElementById('modal-input').value : null); modalResolve = null; }
         }
 
-        // ---------- SISTEMA DE RETRABALHO ----------
+        // ---------- SISTEMA DE RETRABALHO E KPIs ----------
         async function toggleRework(id) {
             const project = appData.projects.find(p => p.id === id);
             if (project.reworkType) {
@@ -504,24 +483,38 @@
 
         function updateKPIs() {
             if (!appData.projects) return;
-            const total = appData.projects.length;
-            let internalC = 0, externalC = 0;
-            appData.projects.forEach(p => {
+            // Filtra os projetos baseados no Ano selecionado
+            const selectedYear = document.getElementById('manager-year-select') ? document.getElementById('manager-year-select').value : "ALL";
+            const filteredProjects = appData.projects.filter(p => {
+                const span = getProjectYearSpan(p);
+                return selectedYear === "ALL" || (span.start <= parseInt(selectedYear) && span.end >= parseInt(selectedYear));
+            });
+
+            const total = filteredProjects.length;
+            let internalGraveC = 0, internalLeveC = 0, externalC = 0;
+            
+            filteredProjects.forEach(p => {
                 if (p.history && Array.isArray(p.history)) {
-                    const hadInternal = p.history.some(h => h.stage && h.stage.includes("RETRABALHO INICIADO - INTERNO"));
+                    const hadIntGrave = p.history.some(h => h.stage && h.stage.includes("RETRABALHO INICIADO - INTERNO_GRAVE"));
+                    const hadIntLeve = p.history.some(h => h.stage && h.stage.includes("RETRABALHO INICIADO - INTERNO_LEVE"));
                     const hadExternal = p.history.some(h => h.stage && h.stage.includes("RETRABALHO INICIADO - EXTERNO"));
-                    if(hadInternal) internalC++;
+                    
+                    if(hadIntGrave) internalGraveC++;
+                    if(hadIntLeve) internalLeveC++;
                     if(hadExternal) externalC++;
                 }
             });
-            const intPct = total === 0 ? 0 : Math.round((internalC / total) * 100);
+            const intGravePct = total === 0 ? 0 : Math.round((internalGraveC / total) * 100);
+            const intLevePct = total === 0 ? 0 : Math.round((internalLeveC / total) * 100);
             const extPct = total === 0 ? 0 : Math.round((externalC / total) * 100);
+            
             if(document.getElementById('kpi-total')) document.getElementById('kpi-total').textContent = total;
-            if(document.getElementById('kpi-internal')) document.getElementById('kpi-internal').textContent = `${intPct}%`;
+            if(document.getElementById('kpi-internal-grave')) document.getElementById('kpi-internal-grave').textContent = `${intGravePct}%`;
+            if(document.getElementById('kpi-internal-leve')) document.getElementById('kpi-internal-leve').textContent = `${intLevePct}%`;
             if(document.getElementById('kpi-external')) document.getElementById('kpi-external').textContent = `${extPct}%`;
         }
 
-        // ---------- SISTEMA DE EDIÇÃO DE DATAS ----------
+        // ---------- SISTEMA DE DATAS E ANOS (Time Slicing) ----------
         function dateToLocalString(dateStr) {
             try {
                 if(!dateStr) return "";
@@ -542,13 +535,57 @@
             return `${day}/${month}/${year}, ${hour}:${min}:00`;
         }
 
+        function parseDateBR(dateStr) {
+            try {
+                if(!dateStr) return new Date();
+                const parts = dateStr.split(/[\s,]+/);
+                const d = parts[0].split('/');
+                const t = parts.length > 1 ? parts[1].split(':') : ['00','00','00'];
+                return new Date(d[2], d[1] - 1, d[0], t[0]||0, t[1]||0, t[2]||0);
+            } catch(e) { return new Date(); }
+        }
+
+        function getProjectYearSpan(project) {
+            if(!project.history || project.history.length === 0) return { start: new Date().getFullYear(), end: new Date().getFullYear() };
+            const firstEvent = project.history[project.history.length - 1]; // Histórico é invertido (unshift)
+            const startYear = parseDateBR(firstEvent.date).getFullYear();
+            let endYear = new Date().getFullYear();
+            if(project.stageIndex === 12) { 
+                const lastEvent = project.history[0]; 
+                endYear = parseDateBR(lastEvent.date).getFullYear();
+            }
+            return { start: startYear, end: endYear };
+        }
+
+        function populateYearSelect() {
+            const select = document.getElementById('manager-year-select');
+            if(!select) return;
+            const currentVal = select.value;
+            let years = new Set();
+            const currentYear = new Date().getFullYear();
+            years.add(currentYear);
+            
+            if(appData && appData.projects) {
+                appData.projects.forEach(p => {
+                    const span = getProjectYearSpan(p);
+                    for(let y = span.start; y <= span.end; y++) years.add(y);
+                });
+            }
+            const sortedYears = Array.from(years).sort((a,b) => b - a);
+            select.innerHTML = '<option value="ALL">Todos os Anos</option>';
+            sortedYears.forEach(y => {
+                const opt = document.createElement('option');
+                opt.value = y; opt.textContent = y;
+                select.appendChild(opt);
+            });
+            select.value = Array.from(select.options).some(o => o.value === currentVal) ? currentVal : "ALL";
+        }
+
         function openDateModal(projectId, historyIndex) {
-            activeEditProjectId = projectId;
-            activeEditHistoryIndex = historyIndex;
+            activeEditProjectId = projectId; activeEditHistoryIndex = historyIndex;
             const project = appData.projects.find(p => p.id === projectId);
-            const currentStr = project.history[historyIndex].date;
             document.getElementById('date-modal').classList.remove('hidden');
-            document.getElementById('date-modal-input').value = dateToLocalString(currentStr);
+            document.getElementById('date-modal-input').value = dateToLocalString(project.history[historyIndex].date);
             document.getElementById('date-modal-input').focus();
         }
 
@@ -562,11 +599,10 @@
                     saveData();
                 }
             }
-            activeEditProjectId = null;
-            activeEditHistoryIndex = null;
+            activeEditProjectId = null; activeEditHistoryIndex = null;
         }
 
-        // ---------- SISTEMA DE SENHAS E CONFIRMAÇÕES ----------
+        // ---------- SENHAS E CONFIRMAÇÕES ----------
         function openPasswordModal(title, desc) {
             document.getElementById('password-modal').classList.remove('hidden');
             document.getElementById('pwd-modal-title').textContent = title;
@@ -574,12 +610,10 @@
             document.getElementById('pwd-modal-input').value = ''; document.getElementById('pwd-modal-input').focus();
             return new Promise(resolve => { passwordResolve = resolve; });
         }
-        
         function closePasswordModal(isConfirmed) {
             document.getElementById('password-modal').classList.add('hidden');
             if (passwordResolve) { passwordResolve(isConfirmed ? document.getElementById('pwd-modal-input').value : null); passwordResolve = null; }
         }
-
         function openConfirmModal(title, desc, isAlertOnly = false) {
             document.getElementById('confirm-modal').classList.remove('hidden');
             document.getElementById('confirm-title').textContent = title;
@@ -588,28 +622,20 @@
             else document.getElementById('confirm-btn-yes').classList.remove('hidden');
             return new Promise(resolve => { confirmResolve = resolve; });
         }
-        
         function closeConfirmModal(isConfirmed) {
             document.getElementById('confirm-modal').classList.add('hidden');
             if (confirmResolve) { confirmResolve(isConfirmed); confirmResolve = null; }
         }
 
-        // ---------- SISTEMA DE TRANSFERÊNCIA ----------
+        // ---------- TRANSFERÊNCIA ----------
         function openTransferModal(projectId) {
             transferProjectId = projectId;
             const select = document.getElementById('transfer-user-select');
             select.innerHTML = '';
             appData.users.forEach(u => {
-                if (u !== currentUser) {
-                    const opt = document.createElement('option');
-                    opt.value = u; opt.textContent = u;
-                    select.appendChild(opt);
-                 }
+                if (u !== currentUser) { const opt = document.createElement('option'); opt.value = u; opt.textContent = u; select.appendChild(opt); }
             });
-            if(select.options.length === 0) {
-                openConfirmModal("Aviso", "Não há outros desenhistas cadastrados para receber.", true);
-                return;
-            }
+            if(select.options.length === 0) { openConfirmModal("Aviso", "Não há outros desenhistas para receber.", true); return; }
             document.getElementById('transfer-obs-input').value = '';
             document.getElementById('transfer-modal').classList.remove('hidden');
         }
@@ -622,33 +648,26 @@
                 const project = appData.projects.find(p => p.id === transferProjectId);
                 if (!project.previousOwners) project.previousOwners = [];
                 if (!project.previousOwners.includes(currentUser)) project.previousOwners.push(currentUser);
-                const oldOwner = project.owner;
-                project.owner = selectedUser;
-                project.history.unshift({ 
-                    stage: "📢 PROJETO TRANSFERIDO", 
-                    obs: `De ${oldOwner} para ${selectedUser}. Motivo: ${obs || 'Sem observação'}`, 
-                    date: new Date().toLocaleString('pt-BR'),
-                    author: currentUser
-                });
-                saveData();
-                switchDraftsmanTab('transferidos'); 
+                const oldOwner = project.owner; project.owner = selectedUser;
+                project.history.unshift({ stage: "📢 PROJETO TRANSFERIDO", obs: `De ${oldOwner} para ${selectedUser}. Motivo: ${obs || 'Sem observação'}`, date: new Date().toLocaleString('pt-BR'), author: currentUser });
+                saveData(); switchDraftsmanTab('transferidos'); 
             }
             transferProjectId = null;
         }
 
         function sanitizeForPDF(text) {
-            if (!text) return "";
-            return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/Ø/gi, '(diam)').replace(/º/g, 'o.').replace(/ª/g, 'a.').replace(/[^\x20-\x7E]/g, ''); 
+            if (!text) return ""; return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/Ø/gi, '(diam)').replace(/º/g, 'o.').replace(/ª/g, 'a.').replace(/[^\x20-\x7E]/g, ''); 
         }
 
-        // ---------- SISTEMA DE LOGIN ----------
+        // ---------- PERFIS E LOGIN ----------
         function renderProfiles() {
             const container = document.getElementById('profiles-container');
             container.innerHTML = '';
             if(appData.users) {
                 appData.users.forEach(user => {
                     const div = document.createElement('div');
-                    div.className = 'profile-card'; div.textContent = user;
+                    div.className = 'profile-card'; 
+                    div.innerHTML = `<span style="pointer-events:none;">${user}</span> <button class="icon-btn" onclick="editUserName(event, '${user}')" title="Editar Nome" style="margin-left:8px; font-size:1.1rem; padding: 0 4px;">✏️</button>`;
                     div.onclick = () => handleLoginClick(user);
                     container.appendChild(div);
                 });
@@ -659,6 +678,35 @@
             const input = document.getElementById('new-user-name');
             const name = input.value.trim();
             if (name && !appData.users.includes(name)) { appData.users.push(name); saveData(); input.value = ''; }
+        }
+
+        async function editUserName(event, oldName) {
+            event.stopPropagation(); // Impede de abrir o modal de login ao clicar no lápis
+            const newName = await openModal("Editar Desenhista", `Corrigir o nome de "${oldName}":`, "Digite o nome com as letras corretas...", oldName);
+            if (newName !== null && newName.trim() !== "" && newName.trim() !== oldName) {
+                const finalName = newName.trim();
+                
+                const uIndex = appData.users.indexOf(oldName);
+                if(uIndex > -1) appData.users[uIndex] = finalName;
+                
+                if(appData.passwords && appData.passwords[oldName]) {
+                    appData.passwords[finalName] = appData.passwords[oldName];
+                    delete appData.passwords[oldName];
+                }
+                
+                if(appData.projects) {
+                    appData.projects.forEach(p => {
+                        if(p.owner === oldName) p.owner = finalName;
+                        if(p.previousOwners) {
+                            const poIdx = p.previousOwners.indexOf(oldName);
+                            if(poIdx > -1) p.previousOwners[poIdx] = finalName;
+                        }
+                        if(p.history) { p.history.forEach(h => { if(h.author === oldName) h.author = finalName; }); }
+                    });
+                }
+                saveData();
+                renderProfiles();
+            }
         }
 
         async function handleLoginClick(user) {
@@ -691,26 +739,18 @@
             currentUser = null;
             document.getElementById('view-dashboard').classList.add('hidden');
             document.getElementById('view-profiles').classList.remove('hidden');
-            if(managerCurrentTab === 'graficos'){
-                switchManagerTab('andamento');
-            } else {
-                renderGlobalFeed();
-            }
+            if(managerCurrentTab === 'graficos'){ switchManagerTab('andamento'); } 
+            else { renderGlobalFeed(); updateKPIs(); }
         }
 
         // ---------- FUNÇÕES DO DESENHISTA ----------
         async function addProject() {
-            const input = document.getElementById('new-project-name');
-            const name = input.value.trim();
+            const input = document.getElementById('new-project-name'); const name = input.value.trim();
             if (name) {
                 const obs = await openModal("Novo Projeto na Fila", `Adicionando à etapa: "${STAGES[0]}"`, "Por que não vai iniciar agora?");
                 if (obs !== null) {
-                    const newProject = {
-                        id: Date.now().toString(), owner: currentUser, name: name, stageIndex: 0, isImpeded: false, reworkType: null, previousOwners: [],
-                        history: [{ stage: STAGES[0], obs: obs || "Sem observação", date: new Date().toLocaleString('pt-BR'), author: currentUser }] 
-                    };
-                    appData.projects.unshift(newProject); saveData(); 
-                    switchDraftsmanTab('andamento'); input.value = '';
+                    const newProject = { id: Date.now().toString(), owner: currentUser, name: name, stageIndex: 0, isImpeded: false, reworkType: null, previousOwners: [], history: [{ stage: STAGES[0], obs: obs || "Sem observação", date: new Date().toLocaleString('pt-BR'), author: currentUser }] };
+                    appData.projects.unshift(newProject); saveData(); switchDraftsmanTab('andamento'); input.value = '';
                 }
             }
         }
@@ -743,10 +783,7 @@
         async function registerEvent(id) {
             const project = appData.projects.find(p => p.id === id);
             const obs = await openModal("Registrar Acontecimento", "O que ocorreu com esse projeto?", "Ex: Cliente pediu alteração extra...");
-            if (obs !== null && obs.trim() !== "") {
-                project.history.unshift({ stage: "📢 REGISTRO EXTRA", obs: obs, date: new Date().toLocaleString('pt-BR'), author: currentUser });
-                saveData();
-            }
+            if (obs !== null && obs.trim() !== "") { project.history.unshift({ stage: "📢 REGISTRO EXTRA", obs: obs, date: new Date().toLocaleString('pt-BR'), author: currentUser }); saveData(); }
         }
 
         async function editHistoryItem(projectId, historyIndex) {
@@ -775,18 +812,11 @@
             const project = appData.projects.find(p => p.id === id);
             if (project.isImpeded) {
                 const obs = await openModal("Retomar Projeto", "O impedimento foi resolvido?", "Descreva a solução...");
-                if (obs !== null) {
-                    project.isImpeded = false;
-                    project.history.unshift({ stage: "🟢 Retomado após Impedimento", obs: obs || "Impedimento solucionado", date: new Date().toLocaleString('pt-BR'), author: currentUser });
-                    saveData();
-                }
+                if (obs !== null) { project.isImpeded = false; project.history.unshift({ stage: "🟢 Retomado após Impedimento", obs: obs || "Impedimento solucionado", date: new Date().toLocaleString('pt-BR'), author: currentUser }); saveData(); }
             } else {
                 const obs = await openModal("Registrar Impedimento", "O projeto está travado?", "Motivo do impedimento (Obrigatório)");
-                if (obs !== null && obs.trim() !== "") {
-                    project.isImpeded = true;
-                    project.history.unshift({ stage: "🔴 IMPEDIMENTO / PAUSADO", obs: obs, date: new Date().toLocaleString('pt-BR'), author: currentUser });
-                    saveData();
-                } else if (obs !== null) openConfirmModal("Atenção", "Para pausar, informe o motivo!", true);
+                if (obs !== null && obs.trim() !== "") { project.isImpeded = true; project.history.unshift({ stage: "🔴 IMPEDIMENTO / PAUSADO", obs: obs, date: new Date().toLocaleString('pt-BR'), author: currentUser }); saveData(); } 
+                else if (obs !== null) openConfirmModal("Atenção", "Para pausar, informe o motivo!", true);
             }
         }
 
@@ -801,13 +831,12 @@
                 document.getElementById('global-feed-container').classList.add('hidden');
                 document.getElementById('manager-actions').classList.add('hidden');
                 document.getElementById('view-graphics').classList.remove('hidden');
-                populateGraphSelect();
-                renderGraph();
+                populateGraphSelect(); renderGraph();
             } else {
                 document.getElementById('view-graphics').classList.add('hidden');
                 document.getElementById('manager-actions').classList.remove('hidden');
                 document.getElementById('global-feed-container').classList.remove('hidden');
-                renderGlobalFeed();
+                renderGlobalFeed(); updateKPIs();
             }
         }
 
@@ -817,24 +846,27 @@
             if(!appData.projects) return;
             
             const searchTerm = (document.getElementById('manager-search-input').value || '').toLowerCase();
+            const selectedYear = document.getElementById('manager-year-select') ? document.getElementById('manager-year-select').value : "ALL";
+
             const filteredProjects = appData.projects.filter(p => {
-                const pName = p.name ? p.name.toLowerCase() : '';
-                const pOwner = p.owner ? p.owner.toLowerCase() : '';
+                const pName = p.name ? p.name.toLowerCase() : ''; const pOwner = p.owner ? p.owner.toLowerCase() : '';
                 const matchesSearch = pName.includes(searchTerm) || pOwner.includes(searchTerm);
                 const matchesTab = managerCurrentTab === 'andamento' ? p.stageIndex !== 12 : p.stageIndex === 12;
-                return matchesSearch && matchesTab;
+                
+                const span = getProjectYearSpan(p);
+                const matchesYear = selectedYear === "ALL" || (span.start <= parseInt(selectedYear) && span.end >= parseInt(selectedYear));
+
+                return matchesSearch && matchesTab && matchesYear;
             });
             
-            if (filteredProjects.length === 0) {
-                container.style.display = 'block';
-                container.innerHTML = `<p style="text-align:center; color:gray; font-size: 1.1rem; margin-top: 20px;">Nenhum projeto encontrado nesta aba.</p>`;
-                return;
-            } else container.style.display = 'grid';
+            if (filteredProjects.length === 0) { container.style.display = 'block'; container.innerHTML = `<p style="text-align:center; color:gray; font-size: 1.1rem; margin-top: 20px;">Nenhum projeto encontrado nesta aba/ano.</p>`; return; } 
+            else container.style.display = 'grid';
             
             filteredProjects.forEach(project => {
                 const isCompleted = project.stageIndex === 12;
                 let cardClass = isCompleted ? 'completed' : (project.isImpeded ? 'impediment' : '');
-                if (project.reworkType === 'interno' && !isCompleted) cardClass += ' rework-interno';
+                if (project.reworkType === 'interno_grave' && !isCompleted) cardClass += ' rework-interno-grave';
+                if (project.reworkType === 'interno_leve' && !isCompleted) cardClass += ' rework-interno-leve';
                 if (project.reworkType === 'externo' && !isCompleted) cardClass += ' rework-externo';
                 
                 const card = document.createElement('div'); card.className = `project-card ${cardClass}`;
@@ -847,63 +879,78 @@
                         const editableDate = `<span class="timeline-date editable-date" onclick="openDateModal('${project.id}', ${index})" title="Editar data retroativa">${item.date || ''} ✏️</span>`;
                         let stageColor = '';
                         if(item.stage && (item.stage === '📢 REGISTRO EXTRA' || item.stage === '📢 PROJETO TRANSFERIDO')) stageColor = 'color: #9333ea;';
-                        if(item.stage && item.stage.includes('RETRABALHO')) stageColor = 'color: #ea580c;';
+                        if(item.stage && item.stage.includes('RETRABALHO INICIADO - INTERNO_GRAVE')) stageColor = 'color: #dc2626;';
+                        if(item.stage && item.stage.includes('RETRABALHO INICIADO - INTERNO_LEVE')) stageColor = 'color: #eab308;';
+                        if(item.stage && item.stage.includes('RETRABALHO INICIADO - EXTERNO')) stageColor = 'color: #ea580c;';
                         historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${stageColor}">${item.stage || ''}</span></div><div class="timeline-obs"><span>↳ Obs: ${item.obs || ''} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span>${editableDate}</div></div>`;
                     });
                 }
 
                 let statusBadge = project.isImpeded ? '⚠️ PAUSADO / IMPEDIDO' : (isCompleted ? '✅ CONCLUÍDO' : '▶ ' + STAGES[project.stageIndex]);
-                if (!isCompleted && project.reworkType === 'interno') statusBadge = '🔄 REVISÃO: ERRO INTERNO';
-                if (!isCompleted && project.reworkType === 'externo') statusBadge = '🔄 REVISÃO: ALTERAÇÃO CLIENTE';
+                let headerColor = isCompleted ? 'var(--success)' : (project.isImpeded ? 'var(--danger)' : 'var(--primary)');
+                
+                if (!isCompleted) {
+                    if (project.reworkType === 'interno_grave') { statusBadge = '🔄 REVISÃO: ERRO INTERNO (GRAVE)'; headerColor = '#dc2626'; }
+                    if (project.reworkType === 'interno_leve') { statusBadge = '🔄 REVISÃO: ERRO INTERNO (LEVE)'; headerColor = '#eab308'; }
+                    if (project.reworkType === 'externo') { statusBadge = '🔄 REVISÃO: ALTERAÇÃO CLIENTE'; headerColor = '#ea580c'; }
+                }
 
                 card.innerHTML = `
                     <div class="project-header">
                         <span class="draftsman-badge">👤 Atual: ${project.owner}</span>
                         <h2 style="font-size: 1.2rem; margin-bottom: 5px;">${project.name}</h2>
-                        <div style="font-weight: bold; color: ${isCompleted ? 'var(--success)' : (project.isImpeded ? 'var(--danger)' : (project.reworkType ? '#9333ea' : 'var(--primary)'))}; margin-top: 10px;">
-                            ${statusBadge}
-                        </div>
+                        <div style="font-weight: bold; color: ${headerColor}; margin-top: 10px;">${statusBadge}</div>
                     </div>
                     <div class="progress-container"><div class="progress-bar" style="width: ${progressPercent}%; background-color: ${isCompleted ? 'var(--success)' : (project.isImpeded ? 'var(--warning)' : 'var(--primary)')}"></div></div>
                     <p style="text-align: right; margin-top: 5px; font-size: 0.85rem; color: #6b7280; margin-bottom: 0;">Progresso: ${progressPercent}%</p>
                     <div class="timeline"><strong>Histórico e Observações:</strong><br>${historyHtml}</div>
-                    <div class="actions" style="margin-top: 15px; display: flex; justify-content: flex-end;">
-                        <button class="info" onclick="exportReportPDF('${project.id}')" style="width: auto; padding: 8px 15px;">📄 Preview PDF</button>
-                    </div>`;
+                    <div class="actions" style="margin-top: 15px; display: flex; justify-content: flex-end;"><button class="info" onclick="exportReportPDF('${project.id}')" style="width: auto; padding: 8px 15px;">📄 Preview PDF</button></div>`;
                 container.appendChild(card);
             });
         }
 
-        // ---------- LÓGICA DE GRÁFICOS E TEMPO (PARETO) ----------
-        function parseDateBR(dateStr) {
-            try {
-                if(!dateStr) return new Date();
-                const parts = dateStr.split(/[\s,]+/);
-                const d = parts[0].split('/');
-                const t = parts.length > 1 ? parts[1].split(':') : ['00','00','00'];
-                return new Date(d[2], d[1] - 1, d[0], t[0]||0, t[1]||0, t[2]||0);
-            } catch(e) { return new Date(); }
-        }
-
+        // ---------- LÓGICA DE GRÁFICOS E TEMPO (PARETO AVANÇADO) ----------
         function populateGraphSelect() {
             const select = document.getElementById('graph-filter-select');
-            select.innerHTML = '<option value="ALL">Geral (Todos os Projetos do Sistema)</option>';
-            appData.projects.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p.id; 
-                opt.textContent = `${p.name} (${p.owner})`;
-                select.appendChild(opt);
+            select.innerHTML = '<option value="ALL">Geral (Todos os Projetos do Filtro Atual)</option>';
+            
+            const selectedYear = document.getElementById('manager-year-select') ? document.getElementById('manager-year-select').value : "ALL";
+            const filteredProjects = appData.projects.filter(p => {
+                const span = getProjectYearSpan(p);
+                return selectedYear === "ALL" || (span.start <= parseInt(selectedYear) && span.end >= parseInt(selectedYear));
             });
+
+            filteredProjects.forEach(p => {
+                const opt = document.createElement('option'); opt.value = p.id; opt.textContent = `${p.name} (${p.owner})`; select.appendChild(opt);
+            });
+        }
+
+        // Fatiador de tempo: Garante que só calcule as horas que caíram DENTRO do ano selecionado.
+        function clampTimeToYear(startTime, endTime, targetYear) {
+            const yearStart = new Date(targetYear, 0, 1).getTime();
+            const yearEnd = new Date(targetYear, 11, 31, 23, 59, 59).getTime();
+            const clampedStart = Math.max(startTime, yearStart);
+            const clampedEnd = Math.min(endTime, yearEnd);
+            return Math.max(0, clampedEnd - clampedStart);
         }
 
         function renderGraph() {
             const selectVal = document.getElementById('graph-filter-select').value;
-            let projectsToAnalyze = selectVal === "ALL" ? appData.projects : appData.projects.filter(p => p.id === selectVal);
+            const managerYearStr = document.getElementById('manager-year-select') ? document.getElementById('manager-year-select').value : "ALL";
+            const targetYear = managerYearStr === "ALL" ? null : parseInt(managerYearStr);
+
+            let projectsToAnalyze = appData.projects.filter(p => {
+                const span = getProjectYearSpan(p);
+                const matchesYear = targetYear === null || (span.start <= targetYear && span.end >= targetYear);
+                const matchesSelect = selectVal === "ALL" || p.id === selectVal;
+                return matchesYear && matchesSelect;
+            });
             
             let timeAcc = {};
             STAGES.forEach(s => timeAcc[s] = 0);
             timeAcc["Pausado / Impedido"] = 0;
-            timeAcc["Retrabalho: Erro Interno"] = 0;
+            timeAcc["Retrabalho: Erro Interno (GRAVE)"] = 0;
+            timeAcc["Retrabalho: Erro Interno (LEVE)"] = 0;
             timeAcc["Retrabalho: Alteração Cliente"] = 0;
 
             projectsToAnalyze.forEach(p => {
@@ -915,23 +962,23 @@
 
                 sortedHistory.forEach(event => {
                     let eventTime = parseDateBR(event.date).getTime();
-                    if (currentStatus && lastTimestamp) { timeAcc[currentStatus] += Math.max(0, eventTime - lastTimestamp); }
-                    if (event.stage && STAGES.includes(event.stage)) {
-                        currentStatus = event.stage; currentRealStage = event.stage;
-                    } else if (event.stage && event.stage === "🔴 IMPEDIMENTO / PAUSADO") {
-                        currentStatus = "Pausado / Impedido";
-                    } else if (event.stage && (event.stage === "🟢 Retomado após Impedimento" || event.stage === "📢 PROJETO TRANSFERIDO" || event.stage === "✅ RETRABALHO CONCLUÍDO")) {
-                        currentStatus = currentRealStage || STAGES[0];
-                    } else if (event.stage && event.stage.includes("⚠️ RETRABALHO INICIADO - INTERNO")) {
-                        currentStatus = "Retrabalho: Erro Interno";
-                    } else if (event.stage && event.stage.includes("⚠️ RETRABALHO INICIADO - EXTERNO")) {
-                        currentStatus = "Retrabalho: Alteração Cliente";
+                    if (currentStatus && lastTimestamp) { 
+                        let duration = targetYear ? clampTimeToYear(lastTimestamp, eventTime, targetYear) : Math.max(0, eventTime - lastTimestamp);
+                        timeAcc[currentStatus] += duration; 
                     }
+                    if (event.stage && STAGES.includes(event.stage)) { currentStatus = event.stage; currentRealStage = event.stage; } 
+                    else if (event.stage && event.stage === "🔴 IMPEDIMENTO / PAUSADO") { currentStatus = "Pausado / Impedido"; } 
+                    else if (event.stage && (event.stage === "🟢 Retomado após Impedimento" || event.stage === "📢 PROJETO TRANSFERIDO" || event.stage === "✅ RETRABALHO CONCLUÍDO")) { currentStatus = currentRealStage || STAGES[0]; } 
+                    else if (event.stage && event.stage.includes("INTERNO_GRAVE")) { currentStatus = "Retrabalho: Erro Interno (GRAVE)"; } 
+                    else if (event.stage && event.stage.includes("INTERNO_LEVE")) { currentStatus = "Retrabalho: Erro Interno (LEVE)"; } 
+                    else if (event.stage && event.stage.includes("EXTERNO")) { currentStatus = "Retrabalho: Alteração Cliente"; }
                     lastTimestamp = eventTime;
                 });
 
                 if (p.stageIndex !== 12 && lastTimestamp && currentStatus) {
-                    timeAcc[currentStatus] += Math.max(0, new Date().getTime() - lastTimestamp);
+                    let now = new Date().getTime();
+                    let duration = targetYear ? clampTimeToYear(lastTimestamp, now, targetYear) : Math.max(0, now - lastTimestamp);
+                    timeAcc[currentStatus] += duration;
                 }
             });
 
@@ -949,8 +996,7 @@
             formattedData.forEach(item => {
                 let safeStage = item.stage || 'Desconhecido';
                 labels.push(safeStage.length > 25 ? safeStage.substring(0,25) + '...' : safeStage);
-                barValues.push(item.hours.toFixed(1));
-                cumulative += item.hours;
+                barValues.push(item.hours.toFixed(1)); cumulative += item.hours;
                 lineValues.push(((cumulative / totalHours) * 100).toFixed(1));
             });
 
@@ -963,7 +1009,8 @@
             if (currentChart) currentChart.destroy(); 
             
             let bgColors = labels.map(label => {
-                if (label.includes("Erro Interno")) return '#9333ea'; 
+                if (label.includes("GRAVE")) return '#dc2626'; 
+                if (label.includes("LEVE")) return '#eab308'; 
                 if (label.includes("Alteração Clie")) return '#ea580c'; 
                 if (label.includes("Pausado / Impedido")) return '#f59e0b'; 
                 return '#2563eb'; 
@@ -972,7 +1019,7 @@
             currentChart = new Chart(ctx, {
                 type: 'bar',
                 data: { labels: labels, datasets: [
-                        { label: '% Acumulada', data: lineValues, type: 'line', borderColor: '#dc2626', backgroundColor: '#dc2626', yAxisID: 'y1', borderWidth: 3, tension: 0.1, pointRadius: 4 },
+                        { label: '% Acumulada', data: lineValues, type: 'line', borderColor: '#4b5563', backgroundColor: '#4b5563', yAxisID: 'y1', borderWidth: 3, tension: 0.1, pointRadius: 4 },
                         { label: 'Tempo Retido (Horas)', data: barValues, backgroundColor: bgColors, yAxisID: 'y', borderRadius: 4 }
                 ]},
                 options: {
@@ -1008,8 +1055,7 @@
             const searchTerm = document.getElementById('search-input').value.toLowerCase();
             
             let userProjects = appData.projects.filter(p => {
-                const isOwner = p.owner === currentUser;
-                const isPreviousOwner = p.previousOwners && p.previousOwners.includes(currentUser);
+                const isOwner = p.owner === currentUser; const isPreviousOwner = p.previousOwners && p.previousOwners.includes(currentUser);
                 if (draftsmanCurrentTab === 'andamento') return isOwner && p.stageIndex !== 12;
                 else if (draftsmanCurrentTab === 'transferidos') return isPreviousOwner && !isOwner && p.stageIndex !== 12;
                 else if (draftsmanCurrentTab === 'concluidos') return (isOwner || isPreviousOwner) && p.stageIndex === 12;
@@ -1019,8 +1065,7 @@
             userProjects = userProjects.filter(p => { const pName = p.name ? p.name.toLowerCase() : ''; return pName.includes(searchTerm); });
 
             if (userProjects.length === 0) {
-                container.style.display = 'block';
-                let txt = 'Nenhum projeto ';
+                container.style.display = 'block'; let txt = 'Nenhum projeto ';
                 if(draftsmanCurrentTab === 'andamento') txt += 'em andamento.';
                 if(draftsmanCurrentTab === 'transferidos') txt += 'transferido ou aguardando conclusão de terceiros.';
                 if(draftsmanCurrentTab === 'concluidos') txt += 'concluído.';
@@ -1031,7 +1076,8 @@
             userProjects.forEach(project => {
                 const isCompleted = project.stageIndex === 12; const isOwner = project.owner === currentUser; 
                 let cardClass = isCompleted ? 'completed' : (project.isImpeded ? 'impediment' : '');
-                if (project.reworkType === 'interno' && !isCompleted) cardClass += ' rework-interno';
+                if (project.reworkType === 'interno_grave' && !isCompleted) cardClass += ' rework-interno-grave';
+                if (project.reworkType === 'interno_leve' && !isCompleted) cardClass += ' rework-interno-leve';
                 if (project.reworkType === 'externo' && !isCompleted) cardClass += ' rework-externo';
 
                 const card = document.createElement('div'); card.className = `project-card ${cardClass}`;
@@ -1047,27 +1093,35 @@
                         const editableDate = `<span class="timeline-date editable-date" onclick="openDateModal('${project.id}', ${index})" title="Editar data retroativa">${item.date || ''} ✏️</span>`;
                         let stageColor = '';
                         if(item.stage && (item.stage === '📢 REGISTRO EXTRA' || item.stage === '📢 PROJETO TRANSFERIDO')) stageColor = 'color: #9333ea;';
-                        if(item.stage && item.stage.includes('RETRABALHO')) stageColor = 'color: #ea580c;';
+                        if(item.stage && item.stage.includes('INTERNO_GRAVE')) stageColor = 'color: #dc2626;';
+                        if(item.stage && item.stage.includes('INTERNO_LEVE')) stageColor = 'color: #eab308;';
+                        if(item.stage && item.stage.includes('EXTERNO')) stageColor = 'color: #ea580c;';
                         historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${stageColor}">${item.stage || ''}</span><div class="timeline-actions">${editBtns}</div></div><div class="timeline-obs"><span>↳ Obs: ${item.obs || ''} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span>${editableDate}</div></div>`;
                     });
                 }
 
                 const disabledSelect = (project.isImpeded || project.reworkType || !isOwner) ? 'disabled' : '';
                 let btnReworkColor = '#d946ef'; let btnReworkText = '🔄 Revisão';
-                if (project.reworkType === 'interno') { btnReworkColor = '#9333ea'; btnReworkText = '✅ Fim Revisão'; }
+                if (project.reworkType === 'interno_grave') { btnReworkColor = '#dc2626'; btnReworkText = '✅ Fim Revisão'; }
+                if (project.reworkType === 'interno_leve') { btnReworkColor = '#eab308'; btnReworkText = '✅ Fim Revisão (Leve)'; }
                 if (project.reworkType === 'externo') { btnReworkColor = '#ea580c'; btnReworkText = '✅ Fim Revisão'; }
                 
                 const mainActionBtns = isOwner ? `
                     <button class="secondary" onclick="registerEvent('${project.id}')" title="Registrar Acontecimento">📝 Fato</button>
                     <button class="warning" onclick="openTransferModal('${project.id}')" style="background:#8b5cf6; color:white;">🔄 Transferir</button>
                     <button class="${project.isImpeded ? 'success' : 'warning'}" onclick="toggleImpediment('${project.id}')">${project.isImpeded ? '▶ Retomar' : '⏸ Pausar'}</button>
-                    <button onclick="toggleRework('${project.id}')" style="background-color: ${btnReworkColor}; color: white;">${btnReworkText}</button>
+                    <button onclick="toggleRework('${project.id}')" style="background-color: ${btnReworkColor}; color: ${project.reworkType === 'interno_leve' ? '#000' : 'white'};">${btnReworkText}</button>
                     <button class="danger" onclick="deleteProject('${project.id}')">Excluir</button>
                 ` : '';
 
                 let statusBadge = project.isImpeded ? '⚠️ PAUSADO / IMPEDIDO' : (isCompleted ? '✅ CONCLUÍDO' : '▶ ' + STAGES[project.stageIndex]);
-                if (!isCompleted && project.reworkType === 'interno') statusBadge = '🔄 REVISÃO: ERRO INTERNO';
-                if (!isCompleted && project.reworkType === 'externo') statusBadge = '🔄 REVISÃO: ALTERAÇÃO CLIENTE';
+                let headerColor = isCompleted ? 'var(--success)' : (project.isImpeded ? 'var(--danger)' : 'var(--primary)');
+                
+                if (!isCompleted) {
+                    if (project.reworkType === 'interno_grave') { statusBadge = '🔄 REVISÃO: ERRO INTERNO (GRAVE)'; headerColor = '#dc2626'; }
+                    if (project.reworkType === 'interno_leve') { statusBadge = '🔄 REVISÃO: ERRO INTERNO (LEVE)'; headerColor = '#eab308'; }
+                    if (project.reworkType === 'externo') { statusBadge = '🔄 REVISÃO: ALTERAÇÃO CLIENTE'; headerColor = '#ea580c'; }
+                }
 
                 card.innerHTML = `
                     <div class="project-header">
@@ -1098,7 +1152,8 @@
             doc.setFont("helvetica", "normal"); doc.setTextColor(80, 80, 80); doc.text(`Status Atual:`, 20, 39);
             
             if (project.stageIndex === 12) { doc.setTextColor(22, 163, 74); doc.text("CONCLUIDO", 45, 39); } 
-            else if (project.reworkType === 'interno') { doc.setFont("helvetica", "bold"); doc.setTextColor(147, 51, 234); doc.text("REVISAO: ERRO INTERNO", 45, 39); }
+            else if (project.reworkType === 'interno_grave') { doc.setFont("helvetica", "bold"); doc.setTextColor(220, 38, 38); doc.text("REVISAO: ERRO INTERNO (GRAVE)", 45, 39); }
+            else if (project.reworkType === 'interno_leve') { doc.setFont("helvetica", "bold"); doc.setTextColor(234, 179, 8); doc.text("REVISAO: ERRO INTERNO (LEVE)", 45, 39); }
             else if (project.reworkType === 'externo') { doc.setFont("helvetica", "bold"); doc.setTextColor(234, 88, 12); doc.text("REVISAO: ALTERACAO CLIENTE", 45, 39); }
             else { doc.setFont("helvetica", "bold"); doc.setTextColor(project.isImpeded ? 220 : 22, project.isImpeded ? 38 : 163, project.isImpeded ? 38 : 74); doc.text(project.isImpeded ? "PAUSADO / IMPEDIDO" : sanitizeForPDF(STAGES[project.stageIndex]), 45, 39); }
             doc.setDrawColor(220, 220, 220); doc.line(20, 45, 190, 45);
@@ -1111,7 +1166,9 @@
                     doc.setFontSize(11); doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold");
                     
                     if(item.stage && (item.stage === "📢 REGISTRO EXTRA" || item.stage === "📢 PROJETO TRANSFERIDO")) doc.setTextColor(147, 51, 234); 
-                    if(item.stage && item.stage.includes("RETRABALHO")) doc.setTextColor(234, 88, 12); 
+                    if(item.stage && item.stage.includes("INTERNO_GRAVE")) doc.setTextColor(220, 38, 38); 
+                    if(item.stage && item.stage.includes("INTERNO_LEVE")) doc.setTextColor(234, 179, 8); 
+                    if(item.stage && item.stage.includes("EXTERNO")) doc.setTextColor(234, 88, 12); 
                     
                     doc.text(`${stepNum}. ${sanitizeForPDF(item.stage || '')}`, 20, yOffset);
                     doc.setFontSize(9); doc.setTextColor(150, 150, 150); doc.setFont("helvetica", "normal"); doc.text(item.date || '', 190, yOffset, { align: "right" });
@@ -1127,12 +1184,10 @@
                 });
             }
             
-            const pdfBlob = doc.output('blob');
-            window.open(URL.createObjectURL(pdfBlob), '_blank');
+            const pdfBlob = doc.output('blob'); window.open(URL.createObjectURL(pdfBlob), '_blank');
         }
 
         function exportDraftsmanReport() { 
-            const isAndamento = draftsmanCurrentTab === 'andamento';
             let projectList = appData.projects.filter(p => {
                 const isOwner = p.owner === currentUser; const isPreviousOwner = p.previousOwners && p.previousOwners.includes(currentUser);
                 if (draftsmanCurrentTab === 'andamento') return isOwner && p.stageIndex !== 12;
@@ -1144,8 +1199,17 @@
         
         function exportManagerReport() { 
             const isAndamento = managerCurrentTab === 'andamento';
-            const projectList = appData.projects.filter(p => isAndamento ? p.stageIndex !== 12 : p.stageIndex === 12);
-            generateListPDF(projectList, isAndamento ? "Geral - Em Andamento" : "Geral - Concluidos"); 
+            const selectedYear = document.getElementById('manager-year-select') ? document.getElementById('manager-year-select').value : "ALL";
+            
+            const projectList = appData.projects.filter(p => {
+                const span = getProjectYearSpan(p);
+                const matchesYear = selectedYear === "ALL" || (span.start <= parseInt(selectedYear) && span.end >= parseInt(selectedYear));
+                const matchesTab = isAndamento ? p.stageIndex !== 12 : p.stageIndex === 12;
+                return matchesTab && matchesYear;
+            });
+
+            const yearLabel = selectedYear === "ALL" ? "Todos os Anos" : `Ano: ${selectedYear}`;
+            generateListPDF(projectList, isAndamento ? `Geral Em Andamento (${yearLabel})` : `Geral Concluidos (${yearLabel})`); 
         }
 
         function generateListPDF(projectList, titleSuffix) {
@@ -1159,7 +1223,9 @@
             else {
                 projectList.forEach((p) => {
                     const isImpeded = p.isImpeded; const isCompleted = p.stageIndex === 12;
-                    const isReworkInternal = p.reworkType === 'interno'; const isReworkExternal = p.reworkType === 'externo';
+                    const isReworkIntGrave = p.reworkType === 'interno_grave'; 
+                    const isReworkIntLeve = p.reworkType === 'interno_leve'; 
+                    const isReworkExternal = p.reworkType === 'externo';
                     
                     let realEvent = null;
                     if(p.history && Array.isArray(p.history)){ realEvent = p.history.find(h => h.stage && h.stage !== "📢 REGISTRO EXTRA" && h.stage !== "📢 PROJETO TRANSFERIDO"); }
@@ -1173,7 +1239,8 @@
                     doc.setFillColor(249, 250, 251); doc.setDrawColor(229, 231, 235); doc.roundedRect(20, yOffset, 170, cardHeight, 2, 2, 'FD');
                     
                     let barColor = isCompleted ? [22, 163, 74] : (isImpeded ? [220, 38, 38] : [37, 99, 235]); 
-                    if (!isCompleted && isReworkInternal) barColor = [147, 51, 234];
+                    if (!isCompleted && isReworkIntGrave) barColor = [220, 38, 38];
+                    if (!isCompleted && isReworkIntLeve) barColor = [234, 179, 8];
                     if (!isCompleted && isReworkExternal) barColor = [234, 88, 12];
                     
                     doc.setFillColor(barColor[0], barColor[1], barColor[2]); doc.rect(20, yOffset, 3, cardHeight, 'F'); 
@@ -1184,7 +1251,8 @@
                     doc.setFontSize(10); doc.setFont("helvetica", "bold");
                     if (isCompleted) { doc.setTextColor(22, 163, 74); doc.text("CONCLUIDO", 28, yOffset + 15); } 
                     else if (isImpeded) { doc.setTextColor(220, 38, 38); doc.text("AVISO: PAUSADO / IMPEDIDO", 28, yOffset + 15); } 
-                    else if (isReworkInternal) { doc.setTextColor(147, 51, 234); doc.text("REVISAO: ERRO INTERNO", 28, yOffset + 15); }
+                    else if (isReworkIntGrave) { doc.setTextColor(220, 38, 38); doc.text("REVISAO: ERRO INTERNO (GRAVE)", 28, yOffset + 15); }
+                    else if (isReworkIntLeve) { doc.setTextColor(234, 179, 8); doc.text("REVISAO: ERRO INTERNO (LEVE)", 28, yOffset + 15); }
                     else if (isReworkExternal) { doc.setTextColor(234, 88, 12); doc.text("REVISAO: ALTERACAO CLIENTE", 28, yOffset + 15); }
                     else { doc.setTextColor(37, 99, 235); doc.text(`ETAPA: ${sanitizeForPDF(STAGES[p.stageIndex] || '').toUpperCase()}`, 28, yOffset + 15); }
                     
@@ -1192,8 +1260,7 @@
                     yOffset += cardHeight + 6;
                 });
             }
-            const pdfBlob = doc.output('blob');
-            window.open(URL.createObjectURL(pdfBlob), '_blank');
+            const pdfBlob = doc.output('blob'); window.open(URL.createObjectURL(pdfBlob), '_blank');
         }
     </script>
 </body>

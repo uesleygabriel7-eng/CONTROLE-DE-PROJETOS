@@ -102,6 +102,7 @@
         <p style="color: var(--text-light);">Isso evita sobrescrever projetos.</p>
     </div>
 
+    <!-- Modais do sistema -->
     <div id="date-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <h3 class="modal-title">📅 Editar Data do Evento</h3>
@@ -180,6 +181,7 @@
     </div>
 
     <div class="container">
+        <!-- TELA INICIAL (GESTÃO / PERFIS) -->
         <div id="view-profiles">
             <div class="header">
                 <h1>👥 Selecionar Desenhista</h1>
@@ -263,7 +265,8 @@
             <div class="header" style="margin-bottom: 5px;">
                 <div class="top-bar">
                     <button onclick="logout()">← Trocar Perfil</button>
-                    <h1 id="dashboard-title" style="margin: 0;">Área de Trabalho</h1>
+                    <!-- O botão de lápis agora fica escondido aqui, acessível só para quem fez o login -->
+                    <h1 id="dashboard-title" style="margin: 0; display: flex; align-items: center; justify-content: center;">Área de Trabalho</h1>
                     <div class="top-bar-actions">
                         <div class="search-bar"><input type="text" id="search-input" onkeyup="renderProjects()" placeholder="🔍 Buscar projeto..."></div>
                         <button class="global-btn" onclick="exportDraftsmanReport()">📊 PDF da Aba Atual</button>
@@ -341,7 +344,7 @@
             if (currentUser) {
                 renderProjects();
             } else {
-                populateYearSelect(); // Popula os anos disponíveis
+                populateYearSelect(); 
                 renderProfiles();
                 updateKPIs();
                 if(managerCurrentTab === 'graficos'){
@@ -381,7 +384,7 @@
             if(appData && appData.projects && appData.projects.length > 0) {
                 localStorage.setItem('backup_projetos_saas', JSON.stringify(appData));
             }
-        }, 300000); // 5 Minutos
+        }, 300000); 
 
         function restoreLocalBackup() {
             const localData = localStorage.getItem('backup_projetos_saas');
@@ -483,7 +486,6 @@
 
         function updateKPIs() {
             if (!appData.projects) return;
-            // Filtra os projetos baseados no Ano selecionado
             const selectedYear = document.getElementById('manager-year-select') ? document.getElementById('manager-year-select').value : "ALL";
             const filteredProjects = appData.projects.filter(p => {
                 const span = getProjectYearSpan(p);
@@ -514,7 +516,7 @@
             if(document.getElementById('kpi-external')) document.getElementById('kpi-external').textContent = `${extPct}%`;
         }
 
-        // ---------- SISTEMA DE DATAS E ANOS (Time Slicing) ----------
+        // ---------- SISTEMA DE DATAS E ANOS ----------
         function dateToLocalString(dateStr) {
             try {
                 if(!dateStr) return "";
@@ -547,7 +549,7 @@
 
         function getProjectYearSpan(project) {
             if(!project.history || project.history.length === 0) return { start: new Date().getFullYear(), end: new Date().getFullYear() };
-            const firstEvent = project.history[project.history.length - 1]; // Histórico é invertido (unshift)
+            const firstEvent = project.history[project.history.length - 1]; 
             const startYear = parseDateBR(firstEvent.date).getFullYear();
             let endYear = new Date().getFullYear();
             if(project.stageIndex === 12) { 
@@ -667,7 +669,8 @@
                 appData.users.forEach(user => {
                     const div = document.createElement('div');
                     div.className = 'profile-card'; 
-                    div.innerHTML = `<span style="pointer-events:none;">${user}</span> <button class="icon-btn" onclick="editUserName(event, '${user}')" title="Editar Nome" style="margin-left:8px; font-size:1.1rem; padding: 0 4px;">✏️</button>`;
+                    // Removido o lápis de edição da tela pública
+                    div.textContent = user; 
                     div.onclick = () => handleLoginClick(user);
                     container.appendChild(div);
                 });
@@ -681,8 +684,8 @@
         }
 
         async function editUserName(event, oldName) {
-            event.stopPropagation(); // Impede de abrir o modal de login ao clicar no lápis
-            const newName = await openModal("Editar Desenhista", `Corrigir o nome de "${oldName}":`, "Digite o nome com as letras corretas...", oldName);
+            if(event) event.stopPropagation(); 
+            const newName = await openModal("Editar Seu Nome", `Corrigir o nome de "${oldName}":`, "Digite o nome com as letras corretas...", oldName);
             if (newName !== null && newName.trim() !== "" && newName.trim() !== oldName) {
                 const finalName = newName.trim();
                 
@@ -705,7 +708,13 @@
                     });
                 }
                 saveData();
-                renderProfiles();
+                
+                // Como ele editou o próprio nome logado, atualizamos a sessão
+                if (currentUser === oldName) {
+                    currentUser = finalName;
+                    document.getElementById('dashboard-title').innerHTML = `Projetos: ${finalName} <button class="icon-btn" onclick="editUserName(event, '${finalName}')" title="Editar Seu Nome" style="font-size: 1.2rem; margin-left: 8px; padding: 0;">✏️</button>`;
+                    renderProjects(); 
+                }
             }
         }
 
@@ -730,7 +739,10 @@
             currentUser = user;
             document.getElementById('view-profiles').classList.add('hidden');
             document.getElementById('view-dashboard').classList.remove('hidden');
-            document.getElementById('dashboard-title').textContent = `Projetos: ${user}`;
+            
+            // O botão de lápis é carregado apenas aqui, após ele fazer o login
+            document.getElementById('dashboard-title').innerHTML = `Projetos: ${user} <button class="icon-btn" onclick="editUserName(event, '${user}')" title="Editar Seu Nome" style="font-size: 1.2rem; margin-left: 8px; padding: 0;">✏️</button>`;
+            
             document.getElementById('search-input').value = '';
             switchDraftsmanTab('andamento');
         }
@@ -925,7 +937,6 @@
             });
         }
 
-        // Fatiador de tempo: Garante que só calcule as horas que caíram DENTRO do ano selecionado.
         function clampTimeToYear(startTime, endTime, targetYear) {
             const yearStart = new Date(targetYear, 0, 1).getTime();
             const yearEnd = new Date(targetYear, 11, 31, 23, 59, 59).getTime();

@@ -102,7 +102,6 @@
         <p style="color: var(--text-light);">Isso evita sobrescrever projetos.</p>
     </div>
 
-    <!-- Modais do sistema -->
     <div id="date-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <h3 class="modal-title">📅 Editar Data do Evento</h3>
@@ -181,18 +180,18 @@
     </div>
 
     <div class="container">
-        <!-- TELA INICIAL (GESTÃO / PERFIS) -->
+        
         <div id="view-profiles">
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 15px;">
+                <button class="icon-btn" onclick="exportBackup()" title="Baixar Backup (.JSON)" style="font-size: 1.4rem; padding: 6px;">💾</button>
+                <button class="icon-btn" onclick="document.getElementById('import-file').click()" title="Importar Backup (.JSON)" style="font-size: 1.4rem; padding: 6px;">📂</button>
+                <button class="icon-btn" onclick="restoreLocalBackup()" title="Recuperar Memória Cache Local" style="font-size: 1.4rem; padding: 6px;">🔄</button>
+                <input type="file" id="import-file" style="display:none" accept=".json" onchange="importBackup(event)">
+            </div>
+            
             <div class="header">
                 <h1>👥 Selecionar Desenhista</h1>
                 <p>Escolha o perfil para acessar a área de trabalho</p>
-                
-                <div style="background: #e5e7eb; padding: 15px; border-radius: 8px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 15px;">
-                    <button class="info" onclick="exportBackup()">💾 Baixar Backup (.JSON)</button>
-                    <button class="warning" onclick="document.getElementById('import-file').click()">📂 Importar Backup</button>
-                    <input type="file" id="import-file" style="display:none" accept=".json" onchange="importBackup(event)">
-                    <button class="secondary" onclick="restoreLocalBackup()">🔄 Restaurar Auto-Backup (Memória Local)</button>
-                </div>
             </div>
 
             <div class="profiles-grid" id="profiles-container"></div>
@@ -265,7 +264,6 @@
             <div class="header" style="margin-bottom: 5px;">
                 <div class="top-bar">
                     <button onclick="logout()">← Trocar Perfil</button>
-                    <!-- O botão de lápis agora fica escondido aqui, acessível só para quem fez o login -->
                     <h1 id="dashboard-title" style="margin: 0; display: flex; align-items: center; justify-content: center;">Área de Trabalho</h1>
                     <div class="top-bar-actions">
                         <div class="search-bar"><input type="text" id="search-input" onkeyup="renderProjects()" placeholder="🔍 Buscar projeto..."></div>
@@ -327,7 +325,17 @@
         let firebaseSincronizado = false;
         let maiorNumeroDeProjetosVistos = 0;
 
-        // ---------- CONEXÃO EM TEMPO REAL ----------
+        function sortProjectsDesc(projArray) {
+            return projArray.sort((a, b) => {
+                const matchA = (a.name || '').match(/^\s*(\d+)/);
+                const matchB = (b.name || '').match(/^\s*(\d+)/);
+                const numA = matchA ? parseInt(matchA[1], 10) : 0;
+                const numB = matchB ? parseInt(matchB[1], 10) : 0;
+                if (numA !== numB) return numB - numA; 
+                return parseInt(b.id || '0') - parseInt(a.id || '0');
+            });
+        }
+
         docRef.onSnapshot((doc) => {
             if (doc.exists) {
                 appData = doc.data();
@@ -361,7 +369,6 @@
 
         function saveData() { 
             if (!firebaseSincronizado) {
-                console.error("🚨 BLOQUEIO: Tentativa de salvar antes de conectar com a nuvem.");
                 alert("Aguarde o sistema sincronizar antes de fazer alterações. Verifique sua internet.");
                 return;
             }
@@ -371,7 +378,6 @@
             }
 
             if (appData && appData.projects && appData.projects.length === 0 && maiorNumeroDeProjetosVistos > 0) {
-                console.error("🚨 BLOQUEIO DE SEGURANÇA: Tentativa de sobrescrever o banco com VAZIO!");
                 alert("ERRO CRÍTICO EVITADO: Seu navegador tentou apagar o banco de dados da nuvem. O sistema bloqueou a ação. Atualize a página.");
                 return; 
             }
@@ -379,7 +385,6 @@
             docRef.set(appData).catch(err => { console.error("Erro ao salvar:", err); });
         }
 
-        // ---------- FUNÇÕES DE BACKUP BLINDADAS ----------
         setInterval(() => {
             if(appData && appData.projects && appData.projects.length > 0) {
                 localStorage.setItem('backup_projetos_saas', JSON.stringify(appData));
@@ -430,7 +435,6 @@
             reader.readAsText(file);
         }
 
-        // ---------- EVENTOS DE TECLADO E MODAIS ----------
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('modal-input').addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); closeModal(true); } });
             document.getElementById('pwd-modal-input').addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); closePasswordModal(true); } });
@@ -453,7 +457,6 @@
             if (modalResolve) { modalResolve(isConfirmed ? document.getElementById('modal-input').value : null); modalResolve = null; }
         }
 
-        // ---------- SISTEMA DE RETRABALHO E KPIs ----------
         async function toggleRework(id) {
             const project = appData.projects.find(p => p.id === id);
             if (project.reworkType) {
@@ -516,7 +519,6 @@
             if(document.getElementById('kpi-external')) document.getElementById('kpi-external').textContent = `${extPct}%`;
         }
 
-        // ---------- SISTEMA DE DATAS E ANOS ----------
         function dateToLocalString(dateStr) {
             try {
                 if(!dateStr) return "";
@@ -604,7 +606,6 @@
             activeEditProjectId = null; activeEditHistoryIndex = null;
         }
 
-        // ---------- SENHAS E CONFIRMAÇÕES ----------
         function openPasswordModal(title, desc) {
             document.getElementById('password-modal').classList.remove('hidden');
             document.getElementById('pwd-modal-title').textContent = title;
@@ -629,7 +630,6 @@
             if (confirmResolve) { confirmResolve(isConfirmed); confirmResolve = null; }
         }
 
-        // ---------- TRANSFERÊNCIA ----------
         function openTransferModal(projectId) {
             transferProjectId = projectId;
             const select = document.getElementById('transfer-user-select');
@@ -661,7 +661,6 @@
             if (!text) return ""; return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/Ø/gi, '(diam)').replace(/º/g, 'o.').replace(/ª/g, 'a.').replace(/[^\x20-\x7E]/g, ''); 
         }
 
-        // ---------- PERFIS E LOGIN ----------
         function renderProfiles() {
             const container = document.getElementById('profiles-container');
             container.innerHTML = '';
@@ -669,7 +668,6 @@
                 appData.users.forEach(user => {
                     const div = document.createElement('div');
                     div.className = 'profile-card'; 
-                    // Removido o lápis de edição da tela pública
                     div.textContent = user; 
                     div.onclick = () => handleLoginClick(user);
                     container.appendChild(div);
@@ -709,7 +707,6 @@
                 }
                 saveData();
                 
-                // Como ele editou o próprio nome logado, atualizamos a sessão
                 if (currentUser === oldName) {
                     currentUser = finalName;
                     document.getElementById('dashboard-title').innerHTML = `Projetos: ${finalName} <button class="icon-btn" onclick="editUserName(event, '${finalName}')" title="Editar Seu Nome" style="font-size: 1.2rem; margin-left: 8px; padding: 0;">✏️</button>`;
@@ -740,7 +737,6 @@
             document.getElementById('view-profiles').classList.add('hidden');
             document.getElementById('view-dashboard').classList.remove('hidden');
             
-            // O botão de lápis é carregado apenas aqui, após ele fazer o login
             document.getElementById('dashboard-title').innerHTML = `Projetos: ${user} <button class="icon-btn" onclick="editUserName(event, '${user}')" title="Editar Seu Nome" style="font-size: 1.2rem; margin-left: 8px; padding: 0;">✏️</button>`;
             
             document.getElementById('search-input').value = '';
@@ -755,7 +751,6 @@
             else { renderGlobalFeed(); updateKPIs(); }
         }
 
-        // ---------- FUNÇÕES DO DESENHISTA ----------
         async function addProject() {
             const input = document.getElementById('new-project-name'); const name = input.value.trim();
             if (name) {
@@ -832,7 +827,6 @@
             }
         }
 
-        // ---------- RENDERIZAR FEED DO GESTOR ----------
         function switchManagerTab(tab) {
             managerCurrentTab = tab;
             document.getElementById('tab-andamento').classList.toggle('active', tab === 'andamento');
@@ -870,6 +864,8 @@
 
                 return matchesSearch && matchesTab && matchesYear;
             });
+            
+            sortProjectsDesc(filteredProjects);
             
             if (filteredProjects.length === 0) { container.style.display = 'block'; container.innerHTML = `<p style="text-align:center; color:gray; font-size: 1.1rem; margin-top: 20px;">Nenhum projeto encontrado nesta aba/ano.</p>`; return; } 
             else container.style.display = 'grid';
@@ -921,7 +917,6 @@
             });
         }
 
-        // ---------- LÓGICA DE GRÁFICOS E TEMPO (PARETO AVANÇADO) ----------
         function populateGraphSelect() {
             const select = document.getElementById('graph-filter-select');
             select.innerHTML = '<option value="ALL">Geral (Todos os Projetos do Filtro Atual)</option>';
@@ -931,6 +926,8 @@
                 const span = getProjectYearSpan(p);
                 return selectedYear === "ALL" || (span.start <= parseInt(selectedYear) && span.end >= parseInt(selectedYear));
             });
+            
+            sortProjectsDesc(filteredProjects);
 
             filteredProjects.forEach(p => {
                 const opt = document.createElement('option'); opt.value = p.id; opt.textContent = `${p.name} (${p.owner})`; select.appendChild(opt);
@@ -1049,7 +1046,6 @@
             });
         }
 
-        // ---------- RENDERIZAR FEED DO DESENHISTA ----------
         function switchDraftsmanTab(tab) {
             draftsmanCurrentTab = tab;
             document.getElementById('tab-draftsman-andamento').classList.toggle('active', tab === 'andamento');
@@ -1074,6 +1070,8 @@
             });
             
             userProjects = userProjects.filter(p => { const pName = p.name ? p.name.toLowerCase() : ''; return pName.includes(searchTerm); });
+            
+            sortProjectsDesc(userProjects);
 
             if (userProjects.length === 0) {
                 container.style.display = 'block'; let txt = 'Nenhum projeto ';
@@ -1154,7 +1152,6 @@
             });
         }
 
-        // ---------- RELATÓRIOS PDF ----------
         function exportReportPDF(id) {
             const project = appData.projects.find(p => p.id === id); const doc = new window.jspdf.jsPDF();
             doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(37, 99, 235); doc.text("Historico de Projeto", 20, 20);
@@ -1205,6 +1202,8 @@
                 if (draftsmanCurrentTab === 'transferidos') return isPreviousOwner && !isOwner && p.stageIndex !== 12;
                 if (draftsmanCurrentTab === 'concluidos') return (isOwner || isPreviousOwner) && p.stageIndex === 12;
             });
+            
+            sortProjectsDesc(projectList);
             generateListPDF(projectList, `Projetos ${sanitizeForPDF(currentUser)} - ${draftsmanCurrentTab.toUpperCase()}`); 
         }
         
@@ -1218,6 +1217,8 @@
                 const matchesTab = isAndamento ? p.stageIndex !== 12 : p.stageIndex === 12;
                 return matchesTab && matchesYear;
             });
+
+            sortProjectsDesc(projectList);
 
             const yearLabel = selectedYear === "ALL" ? "Todos os Anos" : `Ano: ${selectedYear}`;
             generateListPDF(projectList, isAndamento ? `Geral Em Andamento (${yearLabel})` : `Geral Concluidos (${yearLabel})`); 

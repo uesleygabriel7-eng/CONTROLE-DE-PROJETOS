@@ -92,6 +92,30 @@
         .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;}
         
         .chart-container { background: var(--card); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-top: 20px; height: 500px; }
+
+        /* ==== Login inicial e Painel Admin ==== */
+        #view-login { position: fixed; inset: 0; background: #ffffff; display: flex; justify-content: center; align-items: center; z-index: 5000; }
+        .login-box { background: #fff; padding: 40px 35px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 1px solid var(--border); width: 100%; max-width: 380px; text-align: center; }
+        .login-box h1 { color: var(--primary); margin: 0 0 6px 0; font-size: 1.5rem; }
+        .login-box p { color: var(--text-light); margin: 0 0 22px 0; font-size: 0.9rem; }
+        .login-box input { text-align: left; }
+        .login-box button { width: 100%; padding: 12px; font-size: 1rem; margin-top: 6px; }
+        .login-error { color: var(--danger); font-size: 0.85rem; margin-top: 8px; min-height: 18px; }
+        .admin-top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 10px; flex-wrap: wrap; }
+        .admin-panel-btn { background: #111827; color: #fff; padding: 10px 16px; font-size: 0.95rem; }
+        .admin-panel-btn:hover { background: #000; }
+        .session-badge { color: var(--text-light); font-size: 0.85rem; }
+        .session-badge b { color: var(--text); }
+        .accounts-table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 10px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .accounts-table th, .accounts-table td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
+        .accounts-table th { background: #f9fafb; font-weight: bold; color: var(--text-light); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px; }
+        .accounts-table tr:last-child td { border-bottom: none; }
+        .accounts-table .actions-cell { display: flex; gap: 6px; flex-wrap: wrap; }
+        .accounts-table .actions-cell button { padding: 5px 10px; font-size: 0.8rem; }
+        .status-pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: bold; }
+        .status-pill.active { background: #dcfce7; color: #166534; }
+        .status-pill.blocked { background: #fee2e2; color: #991b1b; }
+        .status-pill.admin { background: #e0e7ff; color: #3730a3; }
     </style>
 </head>
 <body>
@@ -179,9 +203,31 @@
         </div>
     </div>
 
+
+    <!-- Tela de Login Inicial (aparece antes de qualquer coisa) -->
+    <div id="view-login">
+        <form class="login-box" onsubmit="event.preventDefault(); doLogin();">
+            <h1>🔒 Acesso ao Sistema</h1>
+            <p>Entre com seu usuário e senha</p>
+            <input type="text" id="login-user" placeholder="Usuário" autocomplete="username" autofocus>
+            <input type="password" id="login-pass" placeholder="Senha" autocomplete="current-password">
+            <button type="submit">Entrar</button>
+            <div class="login-error" id="login-error"></div>
+        </form>
+    </div>
+
     <div class="container">
         
         <div id="view-profiles">
+            <div class="admin-top-bar">
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <button class="admin-panel-btn" onclick="openAdminPanel()">🛡️ Painel de Administração</button>
+                    <span class="session-badge" id="session-badge"></span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="icon-btn" onclick="globalLogout()" title="Sair do Sistema" style="font-size: 1.2rem; padding: 6px;">🚪 Sair</button>
+                </div>
+            </div>
             <div style="display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 15px;">
                 <button class="icon-btn" onclick="exportBackup()" title="Baixar Backup (.JSON)" style="font-size: 1.4rem; padding: 6px;">💾</button>
                 <button class="icon-btn" onclick="document.getElementById('import-file').click()" title="Importar Backup (.JSON)" style="font-size: 1.4rem; padding: 6px;">📂</button>
@@ -260,6 +306,39 @@
             </div>
         </div>
 
+        <div id="view-admin" class="hidden">
+            <div class="header" style="margin-bottom: 15px;">
+                <div class="top-bar">
+                    <button onclick="closeAdminPanel()">← Voltar</button>
+                    <h1 style="margin: 0;">🛡️ Painel de Administração</h1>
+                    <div></div>
+                </div>
+            </div>
+
+            <div class="header" style="text-align: left; max-width: 100%;">
+                <h3>➕ Adicionar Novo Usuário</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: start;">
+                    <input type="text" id="admin-new-user" placeholder="Nome de usuário...">
+                    <input type="password" id="admin-new-pass" placeholder="Senha inicial...">
+                    <button onclick="adminAddAccount()" style="height: 42px; white-space: nowrap;">+ Adicionar</button>
+                </div>
+                <p style="color: var(--text-light); font-size: 0.85rem; margin: 6px 0 0 0;">O usuário poderá alterar a própria senha depois no primeiro acesso à área de desenhista, se quiser.</p>
+            </div>
+
+            <h3 style="margin-top: 25px;">👥 Usuários Cadastrados</h3>
+            <div style="overflow-x: auto;">
+                <table class="accounts-table" id="accounts-table">
+                    <thead>
+                        <tr><th>Usuário</th><th>Status</th><th>Ações</th></tr>
+                    </thead>
+                    <tbody id="accounts-tbody"></tbody>
+                </table>
+            </div>
+            <p style="color: var(--text-light); font-size: 0.85rem; margin-top: 15px;">
+                💡 <b>Dica:</b> Se você precisar transferir os projetos de um usuário bloqueado (ex: desligamento), clique em <b>"Entrar como"</b> para acessar o perfil dele e usar o botão 🔄 Transferir em cada projeto.
+            </p>
+        </div>
+
         <div id="view-dashboard" class="hidden">
             <div class="header" style="margin-bottom: 5px;">
                 <div class="top-bar">
@@ -309,8 +388,10 @@
             "OF Sendo Impressa", "OF Entregue"
         ];
         
-        let appData = { users: ["Uesley", "Gabriel"], passwords: {}, projects: [] };
+        let appData = { users: ["Uesley", "Gabriel"], passwords: {}, projects: [], accounts: {} };
         let currentUser = null;
+        let loggedInAccount = null; // conta usada no login inicial (tela branca)
+        let adminSessionActive = false; // true quando entrou como Admin no login inicial
         let managerCurrentTab = 'andamento';
         let draftsmanCurrentTab = 'andamento'; 
         let currentChart = null; 
@@ -346,12 +427,30 @@
                     firebaseSincronizado = true;
                 }
             }
+            ensureAccountsMigration();
             
             document.getElementById('global-loader').style.display = 'none';
             
+            // Enquanto não logou na tela inicial, só a tela de login aparece
+            if (!loggedInAccount) {
+                document.getElementById('view-login').style.display = 'flex';
+                document.getElementById('view-profiles').classList.add('hidden');
+                document.getElementById('view-dashboard').classList.add('hidden');
+                document.getElementById('view-admin').classList.add('hidden');
+                return;
+            }
+            document.getElementById('view-login').style.display = 'none';
+
+            // Se o painel de admin estiver aberto, apenas re-renderiza a tabela
+            if (!document.getElementById('view-admin').classList.contains('hidden')) {
+                renderAccountsTable();
+                return;
+            }
+
             if (currentUser) {
                 renderProjects();
             } else {
+                updateSessionBadge();
                 populateYearSelect(); 
                 renderProfiles();
                 updateKPIs();
@@ -441,6 +540,8 @@
             document.getElementById('date-modal-input').addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); closeDateModal(true); } });
             document.getElementById('new-user-name').addEventListener('keydown', function(e) { if (e.key === 'Enter') addUser(); });
             document.getElementById('new-project-name').addEventListener('keydown', function(e) { if (e.key === 'Enter') addProject(); });
+            document.getElementById('login-user').addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('login-pass').focus(); } });
+            document.getElementById('login-pass').addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); doLogin(); } });
         });
 
         function openModal(title, desc, placeholder, defaultValue = '') {
@@ -678,7 +779,12 @@
         function addUser() {
             const input = document.getElementById('new-user-name');
             const name = input.value.trim();
-            if (name && !appData.users.includes(name)) { appData.users.push(name); saveData(); input.value = ''; }
+            if (name && !appData.users.includes(name)) {
+                appData.users.push(name);
+                ensureAccountsMigration();
+                if (!appData.accounts[name]) appData.accounts[name] = { password: "", blocked: false, isAdmin: false };
+                saveData(); input.value = '';
+            }
         }
 
         async function editUserName(event, oldName) {
@@ -716,10 +822,20 @@
         }
 
         async function handleLoginClick(user) {
+            ensureAccountsMigration();
+            // Se a conta correspondente estiver bloqueada, impede
+            if (appData.accounts[user] && appData.accounts[user].blocked) {
+                openConfirmModal("Bloqueado", "Este usuário está bloqueado pelo administrador.", true);
+                return;
+            }
             if (!appData.passwords) appData.passwords = {};
+            // Sincroniza senha vinda da conta, se existir
+            if (!appData.passwords[user] && appData.accounts[user] && appData.accounts[user].password) {
+                appData.passwords[user] = appData.accounts[user].password;
+            }
             if (!appData.passwords[user]) {
                 const newPass = await openPasswordModal("Primeiro Acesso", `Crie uma senha para proteger o perfil de ${user}:`);
-                if (newPass !== null && newPass.trim() !== "") { appData.passwords[user] = newPass; saveData(); proceedLogin(user); } 
+                if (newPass !== null && newPass.trim() !== "") { appData.passwords[user] = newPass; if(appData.accounts[user]) appData.accounts[user].password = newPass; saveData(); proceedLogin(user); } 
                 else if (newPass !== null) openConfirmModal("Aviso", "A senha não pode ser vazia.", true);
             } else {
                 const inputPass = await openPasswordModal("Acesso Restrito", `Digite a senha para ${user} (Senha mestra disponível):`);
@@ -747,9 +863,219 @@
             currentUser = null;
             document.getElementById('view-dashboard').classList.add('hidden');
             document.getElementById('view-profiles').classList.remove('hidden');
+            updateSessionBadge();
             if(managerCurrentTab === 'graficos'){ switchManagerTab('andamento'); } 
             else { renderGlobalFeed(); updateKPIs(); }
         }
+
+        function globalLogout() {
+            currentUser = null;
+            loggedInAccount = null;
+            adminSessionActive = false;
+            document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('view-admin').classList.add('hidden');
+            document.getElementById('view-profiles').classList.add('hidden');
+            document.getElementById('login-user').value = '';
+            document.getElementById('login-pass').value = '';
+            document.getElementById('login-error').textContent = '';
+            document.getElementById('view-login').style.display = 'flex';
+        }
+
+        function updateSessionBadge() {
+            const el = document.getElementById('session-badge');
+            if (!el) return;
+            if (loggedInAccount) {
+                const tag = adminSessionActive ? ' <span class="status-pill admin">ADMIN</span>' : '';
+                el.innerHTML = 'Sessão: <b>' + loggedInAccount + '</b>' + tag;
+            } else el.textContent = '';
+        }
+
+        // ============ SISTEMA DE CONTAS / LOGIN ============
+        function ensureAccountsMigration() {
+            if (!appData.accounts) appData.accounts = {};
+            // Garante Admin padrão
+            if (!appData.accounts["Admin"]) {
+                appData.accounts["Admin"] = { password: "mestre1234", blocked: false, isAdmin: true };
+            } else {
+                appData.accounts["Admin"].isAdmin = true;
+                appData.accounts["Admin"].blocked = false;
+            }
+            // Migra desenhistas existentes -> cria conta se ainda não tiver
+            if (Array.isArray(appData.users)) {
+                appData.users.forEach(u => {
+                    if (!appData.accounts[u]) {
+                        const oldPass = (appData.passwords && appData.passwords[u]) ? appData.passwords[u] : "";
+                        appData.accounts[u] = { password: oldPass, blocked: false, isAdmin: false };
+                    }
+                });
+            }
+        }
+
+        function doLogin() {
+            const user = document.getElementById('login-user').value.trim();
+            const pass = document.getElementById('login-pass').value;
+            const err = document.getElementById('login-error');
+            err.textContent = '';
+            if (!user) { err.textContent = 'Informe o usuário.'; return; }
+            ensureAccountsMigration();
+            const acc = appData.accounts[user];
+            if (!acc) { err.textContent = 'Usuário ou senha incorretos.'; return; }
+            if (acc.blocked) { err.textContent = '🚫 Este usuário está bloqueado. Fale com o administrador.'; return; }
+            if ((acc.password || '') !== pass) { err.textContent = 'Usuário ou senha incorretos.'; return; }
+
+            loggedInAccount = user;
+            adminSessionActive = !!acc.isAdmin;
+            document.getElementById('login-pass').value = '';
+            document.getElementById('view-login').style.display = 'none';
+            document.getElementById('view-profiles').classList.remove('hidden');
+            updateSessionBadge();
+            populateYearSelect();
+            renderProfiles();
+            updateKPIs();
+            renderGlobalFeed();
+        }
+
+        // ============ PAINEL DE ADMINISTRAÇÃO ============
+        async function openAdminPanel() {
+            if (!adminSessionActive) {
+                // Pede credenciais de admin
+                const u = await openModal("Painel de Administração", "Digite o nome de usuário do administrador:", "Usuário admin...");
+                if (u === null) return;
+                const p = await openPasswordModal("Painel de Administração", "Digite a senha do administrador:");
+                if (p === null) return;
+                ensureAccountsMigration();
+                const acc = appData.accounts[u.trim()];
+                if (!acc || !acc.isAdmin || acc.blocked || (acc.password || '') !== p) {
+                    openConfirmModal("Acesso Negado", "Credenciais de administrador inválidas.", true);
+                    return;
+                }
+                adminSessionActive = true;
+                updateSessionBadge();
+            }
+            document.getElementById('view-profiles').classList.add('hidden');
+            document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('view-admin').classList.remove('hidden');
+            renderAccountsTable();
+        }
+
+        function closeAdminPanel() {
+            document.getElementById('view-admin').classList.add('hidden');
+            document.getElementById('view-profiles').classList.remove('hidden');
+            renderProfiles();
+            renderGlobalFeed();
+            updateKPIs();
+        }
+
+        function renderAccountsTable() {
+            ensureAccountsMigration();
+            const tbody = document.getElementById('accounts-tbody');
+            tbody.innerHTML = '';
+            const names = Object.keys(appData.accounts).sort((a,b) => {
+                if (a === "Admin") return -1;
+                if (b === "Admin") return 1;
+                return a.localeCompare(b);
+            });
+            names.forEach(name => {
+                const acc = appData.accounts[name];
+                const tr = document.createElement('tr');
+                let statusHtml = '';
+                if (acc.isAdmin) statusHtml += '<span class="status-pill admin">ADMIN</span> ';
+                statusHtml += acc.blocked
+                    ? '<span class="status-pill blocked">BLOQUEADO</span>'
+                    : '<span class="status-pill active">ATIVO</span>';
+
+                let actionsHtml = '';
+                if (acc.isAdmin) {
+                    actionsHtml = `<button class="secondary" onclick="adminResetPass('${name}')">🔑 Redefinir Senha</button>`;
+                } else {
+                    actionsHtml = `
+                        <button class="secondary" onclick="adminResetPass('${name}')">🔑 Redefinir Senha</button>
+                        <button class="${acc.blocked ? 'success' : 'warning'}" onclick="adminToggleBlock('${name}')">${acc.blocked ? '✅ Desbloquear' : '🚫 Bloquear'}</button>
+                        <button class="info" onclick="adminEnterAs('${name}')">👤 Entrar como</button>
+                        <button class="danger" onclick="adminDeleteAccount('${name}')">🗑️ Excluir</button>
+                    `;
+                }
+                tr.innerHTML = `<td><b>${name}</b></td><td>${statusHtml}</td><td><div class="actions-cell">${actionsHtml}</div></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function adminAddAccount() {
+            const uEl = document.getElementById('admin-new-user');
+            const pEl = document.getElementById('admin-new-pass');
+            const u = uEl.value.trim();
+            const p = pEl.value;
+            if (!u) { openConfirmModal("Aviso", "Informe o nome de usuário.", true); return; }
+            if (!p) { openConfirmModal("Aviso", "Informe a senha inicial.", true); return; }
+            ensureAccountsMigration();
+            if (appData.accounts[u]) { openConfirmModal("Aviso", "Já existe um usuário com esse nome.", true); return; }
+            appData.accounts[u] = { password: p, blocked: false, isAdmin: false };
+            if (!appData.users) appData.users = [];
+            if (!appData.users.includes(u)) appData.users.push(u);
+            if (!appData.passwords) appData.passwords = {};
+            appData.passwords[u] = p; // mantém compatibilidade com a área de desenhista
+            saveData();
+            uEl.value = ''; pEl.value = '';
+            renderAccountsTable();
+        }
+
+        async function adminResetPass(name) {
+            const newP = await openPasswordModal("Redefinir Senha", `Digite a nova senha para "${name}":`);
+            if (newP === null) return;
+            if (!newP) { openConfirmModal("Aviso", "A senha não pode ser vazia.", true); return; }
+            ensureAccountsMigration();
+            appData.accounts[name].password = newP;
+            if (appData.passwords) appData.passwords[name] = newP;
+            saveData();
+            renderAccountsTable();
+            openConfirmModal("Sucesso", `Senha de "${name}" redefinida.`, true);
+        }
+
+        async function adminToggleBlock(name) {
+            ensureAccountsMigration();
+            const acc = appData.accounts[name];
+            if (acc.isAdmin) { openConfirmModal("Aviso", "A conta Admin não pode ser bloqueada.", true); return; }
+            const goingToBlock = !acc.blocked;
+            const ok = await openConfirmModal(
+                goingToBlock ? "Bloquear Usuário" : "Desbloquear Usuário",
+                goingToBlock
+                    ? `Bloquear "${name}"? Ele não poderá mais entrar. Você continua podendo acessar o perfil dele por "Entrar como" para transferir projetos.`
+                    : `Desbloquear "${name}" e liberar o acesso novamente?`
+            );
+            if (!ok) return;
+            acc.blocked = goingToBlock;
+            saveData();
+            renderAccountsTable();
+        }
+
+        async function adminDeleteAccount(name) {
+            ensureAccountsMigration();
+            if (appData.accounts[name] && appData.accounts[name].isAdmin) {
+                openConfirmModal("Aviso", "A conta Admin não pode ser excluída.", true);
+                return;
+            }
+            const ok = await openConfirmModal("Excluir Usuário", `Excluir a conta "${name}"? Os projetos dele continuam no sistema (transfira antes se necessário).`);
+            if (!ok) return;
+            delete appData.accounts[name];
+            if (Array.isArray(appData.users)) appData.users = appData.users.filter(u => u !== name);
+            if (appData.passwords) delete appData.passwords[name];
+            saveData();
+            renderAccountsTable();
+        }
+
+        function adminEnterAs(name) {
+            ensureAccountsMigration();
+            if (!appData.users.includes(name)) appData.users.push(name);
+            // acessa direto sem senha (privilégio de admin)
+            document.getElementById('view-admin').classList.add('hidden');
+            document.getElementById('view-profiles').classList.add('hidden');
+            currentUser = name;
+            document.getElementById('view-dashboard').classList.remove('hidden');
+            document.getElementById('dashboard-title').innerHTML = `Projetos: ${name} <span class="status-pill admin" style="margin-left: 8px; font-size: 0.7rem;">ACESSO ADMIN</span>`;
+            document.getElementById('search-input').value = '';
+            switchDraftsmanTab('andamento');
+        }
+
 
         async function addProject() {
             const input = document.getElementById('new-project-name'); const name = input.value.trim();

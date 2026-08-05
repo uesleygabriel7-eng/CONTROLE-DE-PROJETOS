@@ -417,13 +417,24 @@
             });
         }
 
-        docRef.onSnapshot((doc) => {
+        docRef.onSnapshot({ includeMetadataChanges: true }, (doc) => {
+            // NUNCA confie em um snapshot vindo do cache local para decidir criar o banco.
+            // Em um dispositivo novo (ou offline), o Firestore entrega primeiro um snapshot
+            // de cache com doc.exists === false, e o codigo antigo sobrescrevia a nuvem
+            // com o appData vazio, apagando tudo.
+            const veioDoCache = doc.metadata.fromCache;
+
             if (doc.exists) {
                 appData = doc.data();
                 firebaseSincronizado = true;
             } else {
-                if(!firebaseSincronizado) {
-                    docRef.set(appData);
+                if (veioDoCache) {
+                    // Ainda nao sabemos se o documento existe no servidor. Nao faz nada.
+                    return;
+                }
+                if (!firebaseSincronizado) {
+                    // Confirmado pelo servidor que o documento nao existe: cria pela 1a vez.
+                    docRef.set(appData, { merge: true });
                     firebaseSincronizado = true;
                 }
             }
@@ -481,7 +492,7 @@
                 return; 
             }
 
-            docRef.set(appData).catch(err => { console.error("Erro ao salvar:", err); });
+            docRef.set(appData, { merge: true }).catch(err => { console.error("Erro ao salvar:", err); });
         }
 
         setInterval(() => {

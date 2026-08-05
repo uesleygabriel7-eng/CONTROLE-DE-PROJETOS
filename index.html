@@ -116,9 +116,38 @@
         .status-pill.active { background: #dcfce7; color: #166534; }
         .status-pill.blocked { background: #fee2e2; color: #991b1b; }
         .status-pill.admin { background: #e0e7ff; color: #3730a3; }
+
+        /* ===== Aviso discreto de conexao ===== */
+        #conn-warning {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 100000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: #dc2626;
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 7px 14px;
+            box-shadow: 0 1px 4px rgba(0,0,0,.2);
+            font-family: inherit;
+        }
+        #conn-warning.show { display: flex; }
+        #conn-warning svg { flex: 0 0 auto; }
     </style>
 </head>
 <body>
+
+    <div id="conn-warning" class="show">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+        <span id="conn-warning-text">Conectando ao servidor... seus dados ainda não foram carregados.</span>
+    </div>
 
     <div id="global-loader">
         <div class="spinner"></div>
@@ -417,6 +446,18 @@
             });
         }
 
+
+        // ===== Aviso de conexao (faixa vermelha no topo) =====
+        function setConnWarning(visivel, texto) {
+            const el = document.getElementById('conn-warning');
+            if (!el) return;
+            if (texto) document.getElementById('conn-warning-text').textContent = texto;
+            el.classList.toggle('show', !!visivel);
+        }
+        // Aparece imediatamente ao abrir o link, antes de qualquer resposta do Firestore.
+        setConnWarning(true, 'Conectando ao servidor... seus dados ainda não foram carregados.');
+        window.addEventListener('offline', () => setConnWarning(true, 'Sem conexão com a internet. Os dados podem estar desatualizados.'));
+
         docRef.onSnapshot({ includeMetadataChanges: true }, (doc) => {
             // NUNCA confie em um snapshot vindo do cache local para decidir criar o banco.
             // Em um dispositivo novo (ou offline), o Firestore entrega primeiro um snapshot
@@ -426,10 +467,17 @@
 
             if (doc.exists) {
                 appData = doc.data();
-                firebaseSincronizado = true;
+                if (!veioDoCache) {
+                    firebaseSincronizado = true;
+                    setConnWarning(false);
+                } else if (!firebaseSincronizado) {
+                    // Dados vieram so do cache local: mostra o aviso e nao libera edicoes.
+                    setConnWarning(true, 'Sem conexão com o servidor. Mostrando dados salvos neste aparelho.');
+                }
             } else {
                 if (veioDoCache) {
                     // Ainda nao sabemos se o documento existe no servidor. Nao faz nada.
+                    setConnWarning(true, 'Conectando ao servidor... seus dados ainda não foram carregados.');
                     return;
                 }
                 if (!firebaseSincronizado) {
@@ -437,6 +485,7 @@
                     docRef.set(appData, { merge: true });
                     firebaseSincronizado = true;
                 }
+                setConnWarning(false);
             }
             ensureAccountsMigration();
             
@@ -474,6 +523,7 @@
             }
         }, (error) => {
             console.error("Erro no Firebase:", error);
+            setConnWarning(true, 'Falha ao conectar com o servidor. Verifique sua internet.');
             document.getElementById('global-loader').innerHTML = `<h2 style="color: red;">Erro de Conexão</h2><p>Falha ao conectar com o banco de dados.</p>`;
         });
 

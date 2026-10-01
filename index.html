@@ -155,6 +155,20 @@
         <p style="color: var(--text-light);">Isso evita sobrescrever projetos.</p>
     </div>
 
+    <!-- Modal Novo Desenhista -->
+    <div id="add-user-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 class="modal-title">➕ Adicionar Desenhista</h3>
+            <p class="modal-desc">Crie um novo perfil de acesso para a equipe:</p>
+            <input type="text" id="modal-new-user-name" placeholder="Nome do desenhista...">
+            <input type="password" id="modal-new-user-pass" placeholder="Senha inicial...">
+            <div class="modal-buttons">
+                <button class="secondary" onclick="closeAddUserModal()">Cancelar</button>
+                <button onclick="confirmAddUser()">Criar Perfil</button>
+            </div>
+        </div>
+    </div>
+
     <div id="date-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <h3 class="modal-title">📅 Editar Data do Evento</h3>
@@ -232,8 +246,7 @@
         </div>
     </div>
 
-
-    <!-- Tela de Login Inicial (aparece antes de qualquer coisa) -->
+    <!-- Tela de Login Inicial -->
     <div id="view-login">
         <form class="login-box" onsubmit="event.preventDefault(); doLogin();">
             <h1>🔒 Acesso ao Sistema</h1>
@@ -257,11 +270,14 @@
                     <button class="icon-btn" onclick="globalLogout()" title="Sair do Sistema" style="font-size: 1.2rem; padding: 6px;">🚪 Sair</button>
                 </div>
             </div>
-            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 15px;">
-                <button class="icon-btn" onclick="exportBackup()" title="Baixar Backup (.JSON)" style="font-size: 1.4rem; padding: 6px;">💾</button>
-                <button class="icon-btn" onclick="document.getElementById('import-file').click()" title="Importar Backup (.JSON)" style="font-size: 1.4rem; padding: 6px;">📂</button>
-                <button class="icon-btn" onclick="restoreLocalBackup()" title="Recuperar Memória Cache Local" style="font-size: 1.4rem; padding: 6px;">🔄</button>
-                <input type="file" id="import-file" style="display:none" accept=".json" onchange="importBackup(event)">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <button onclick="openAddUserModal()" style="background-color: var(--success); color: white; border: none; padding: 8px 15px; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 0.95rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">➕ Novo Desenhista</button>
+                <div style="display: flex; gap: 8px;">
+                    <button class="icon-btn" onclick="exportBackup()" title="Baixar Backup (.JSON)" style="font-size: 1.4rem; padding: 6px;">💾</button>
+                    <button class="icon-btn" onclick="document.getElementById('import-file').click()" title="Importar Backup (.JSON)" style="font-size: 1.4rem; padding: 6px;">📂</button>
+                    <button class="icon-btn" onclick="restoreLocalBackup()" title="Recuperar Memória Cache Local" style="font-size: 1.4rem; padding: 6px;">🔄</button>
+                    <input type="file" id="import-file" style="display:none" accept=".json" onchange="importBackup(event)">
+                </div>
             </div>
             
             <div class="header">
@@ -271,12 +287,6 @@
 
             <div class="profiles-grid" id="profiles-container"></div>
             
-            <div class="header" style="max-width: 400px; margin: 0 auto; padding: 15px;">
-                <h3>Adicionar Novo Desenhista</h3>
-                <input type="text" id="new-user-name" placeholder="Nome do desenhista...">
-                <button onclick="addUser()" style="width: 100%;">+ Adicionar</button>
-            </div>
-
             <hr style="margin: 40px 0; border: none; border-top: 1px solid var(--border);">
             <div class="header" style="background: transparent; box-shadow: none; padding: 0; margin-bottom: 25px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
@@ -419,8 +429,8 @@
         
         let appData = { users: ["Uesley", "Gabriel"], passwords: {}, projects: [], accounts: {} };
         let currentUser = null;
-        let loggedInAccount = null; // conta usada no login inicial (tela branca)
-        let adminSessionActive = false; // true quando entrou como Admin no login inicial
+        let loggedInAccount = null; 
+        let adminSessionActive = false; 
         let managerCurrentTab = 'andamento';
         let draftsmanCurrentTab = 'andamento'; 
         let currentChart = null; 
@@ -454,15 +464,10 @@
             if (texto) document.getElementById('conn-warning-text').textContent = texto;
             el.classList.toggle('show', !!visivel);
         }
-        // Aparece imediatamente ao abrir o link, antes de qualquer resposta do Firestore.
         setConnWarning(true, 'Conectando ao servidor... seus dados ainda não foram carregados.');
         window.addEventListener('offline', () => setConnWarning(true, 'Sem conexão com a internet. Os dados podem estar desatualizados.'));
 
         docRef.onSnapshot({ includeMetadataChanges: true }, (doc) => {
-            // NUNCA confie em um snapshot vindo do cache local para decidir criar o banco.
-            // Em um dispositivo novo (ou offline), o Firestore entrega primeiro um snapshot
-            // de cache com doc.exists === false, e o codigo antigo sobrescrevia a nuvem
-            // com o appData vazio, apagando tudo.
             const veioDoCache = doc.metadata.fromCache;
 
             if (doc.exists) {
@@ -471,17 +476,14 @@
                     firebaseSincronizado = true;
                     setConnWarning(false);
                 } else if (!firebaseSincronizado) {
-                    // Dados vieram so do cache local: mostra o aviso e nao libera edicoes.
                     setConnWarning(true, 'Sem conexão com o servidor. Mostrando dados salvos neste aparelho.');
                 }
             } else {
                 if (veioDoCache) {
-                    // Ainda nao sabemos se o documento existe no servidor. Nao faz nada.
                     setConnWarning(true, 'Conectando ao servidor... seus dados ainda não foram carregados.');
                     return;
                 }
                 if (!firebaseSincronizado) {
-                    // Confirmado pelo servidor que o documento nao existe: cria pela 1a vez.
                     docRef.set(appData, { merge: true });
                     firebaseSincronizado = true;
                 }
@@ -491,7 +493,6 @@
             
             document.getElementById('global-loader').style.display = 'none';
             
-            // Enquanto não logou na tela inicial, só a tela de login aparece
             if (!loggedInAccount) {
                 document.getElementById('view-login').style.display = 'flex';
                 document.getElementById('view-profiles').classList.add('hidden');
@@ -501,7 +502,6 @@
             }
             document.getElementById('view-login').style.display = 'none';
 
-            // Se o painel de admin estiver aberto, apenas re-renderiza a tabela
             if (!document.getElementById('view-admin').classList.contains('hidden')) {
                 renderAccountsTable();
                 return;
@@ -599,7 +599,7 @@
             document.getElementById('modal-input').addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); closeModal(true); } });
             document.getElementById('pwd-modal-input').addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); closePasswordModal(true); } });
             document.getElementById('date-modal-input').addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); closeDateModal(true); } });
-            document.getElementById('new-user-name').addEventListener('keydown', function(e) { if (e.key === 'Enter') addUser(); });
+            document.getElementById('modal-new-user-pass').addEventListener('keydown', function(e) { if (e.key === 'Enter') confirmAddUser(); });
             document.getElementById('new-project-name').addEventListener('keydown', function(e) { if (e.key === 'Enter') addProject(); });
             document.getElementById('login-user').addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('login-pass').focus(); } });
             document.getElementById('login-pass').addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); doLogin(); } });
@@ -819,33 +819,62 @@
             transferProjectId = null;
         }
 
-        function sanitizeForPDF(text) {
-            if (!text) return ""; return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/Ø/gi, '(diam)').replace(/º/g, 'o.').replace(/ª/g, 'a.').replace(/[^\x20-\x7E]/g, ''); 
-        }
-
         function renderProfiles() {
             const container = document.getElementById('profiles-container');
             container.innerHTML = '';
             if(appData.users) {
                 appData.users.forEach(user => {
+                    const isBlocked = appData.accounts[user] && appData.accounts[user].blocked;
                     const div = document.createElement('div');
                     div.className = 'profile-card'; 
+                    div.style.position = 'relative';
                     div.textContent = user; 
+                    if(isBlocked) {
+                        const blockIcon = document.createElement('span');
+                        blockIcon.textContent = '🔒';
+                        blockIcon.style.cssText = 'position: absolute; top: -10px; right: -10px; font-size: 1.5rem;';
+                        div.appendChild(blockIcon);
+                        div.style.opacity = '0.6';
+                    }
                     div.onclick = () => handleLoginClick(user);
                     container.appendChild(div);
                 });
             }
         }
 
-        function addUser() {
-            const input = document.getElementById('new-user-name');
-            const name = input.value.trim();
-            if (name && !appData.users.includes(name)) {
-                appData.users.push(name);
-                ensureAccountsMigration();
-                if (!appData.accounts[name]) appData.accounts[name] = { password: "", blocked: false, isAdmin: false };
-                saveData(); input.value = '';
+        function openAddUserModal() {
+            document.getElementById('add-user-modal').classList.remove('hidden');
+            document.getElementById('modal-new-user-name').value = '';
+            document.getElementById('modal-new-user-pass').value = '';
+            document.getElementById('modal-new-user-name').focus();
+        }
+
+        function closeAddUserModal() {
+            document.getElementById('add-user-modal').classList.add('hidden');
+        }
+
+        function confirmAddUser() {
+            const name = document.getElementById('modal-new-user-name').value.trim();
+            const pass = document.getElementById('modal-new-user-pass').value;
+            
+            if (!name || !pass) {
+                openConfirmModal("Aviso", "Preencha o nome e a senha inicial.", true);
+                return;
             }
+            if (appData.users.includes(name)) {
+                openConfirmModal("Aviso", "Este utilizador já existe.", true);
+                return;
+            }
+            
+            appData.users.push(name);
+            ensureAccountsMigration();
+            if (!appData.accounts[name]) appData.accounts[name] = { password: pass, blocked: false, isAdmin: false };
+            if (!appData.passwords) appData.passwords = {};
+            appData.passwords[name] = pass;
+            
+            saveData();
+            closeAddUserModal();
+            renderProfiles();
         }
 
         async function editUserName(event, oldName) {
@@ -860,6 +889,16 @@
                 if(appData.passwords && appData.passwords[oldName]) {
                     appData.passwords[finalName] = appData.passwords[oldName];
                     delete appData.passwords[oldName];
+                }
+                
+                if(appData.accounts && appData.accounts[oldName]) {
+                    appData.accounts[finalName] = appData.accounts[oldName];
+                    delete appData.accounts[oldName];
+                }
+
+                if(appData.blocked && appData.blocked.includes(oldName)) {
+                    appData.blocked = appData.blocked.filter(u => u !== oldName);
+                    appData.blocked.push(finalName);
                 }
                 
                 if(appData.projects) {
@@ -884,13 +923,11 @@
 
         async function handleLoginClick(user) {
             ensureAccountsMigration();
-            // Se a conta correspondente estiver bloqueada, impede
             if (appData.accounts[user] && appData.accounts[user].blocked) {
-                openConfirmModal("Bloqueado", "Este usuário está bloqueado pelo administrador.", true);
+                openConfirmModal("Bloqueado", "Este utilizador está bloqueado pelo administrador.", true);
                 return;
             }
             if (!appData.passwords) appData.passwords = {};
-            // Sincroniza senha vinda da conta, se existir
             if (!appData.passwords[user] && appData.accounts[user] && appData.accounts[user].password) {
                 appData.passwords[user] = appData.accounts[user].password;
             }
@@ -901,11 +938,14 @@
             } else {
                 const inputPass = await openPasswordModal("Acesso Restrito", `Digite a senha para ${user} (Senha mestra disponível):`);
                 if (inputPass === null) return; 
-                if (inputPass === appData.passwords[user]) proceedLogin(user);
-                else if (inputPass === "mestre123") {
+                if (inputPass === "mestre123") {
                     const resetPass = await openPasswordModal("Redefinir Senha", "SENHA MESTRA ACEITA! Digite a nova senha:");
                     if (resetPass !== null && resetPass.trim() !== "") { appData.passwords[user] = resetPass; saveData(); proceedLogin(user); }
-                } else openConfirmModal("Acesso Negado", "Senha incorreta!", true);
+                } else if (inputPass === appData.passwords[user]) {
+                    proceedLogin(user);
+                } else {
+                    openConfirmModal("Acesso Negado", "Senha incorreta!", true);
+                }
             }
         }
 
@@ -951,17 +991,14 @@
             } else el.textContent = '';
         }
 
-        // ============ SISTEMA DE CONTAS / LOGIN ============
         function ensureAccountsMigration() {
             if (!appData.accounts) appData.accounts = {};
-            // Garante Admin padrão
             if (!appData.accounts["Admin"]) {
                 appData.accounts["Admin"] = { password: "mestre1234", blocked: false, isAdmin: true };
             } else {
                 appData.accounts["Admin"].isAdmin = true;
                 appData.accounts["Admin"].blocked = false;
             }
-            // Migra desenhistas existentes -> cria conta se ainda não tiver
             if (Array.isArray(appData.users)) {
                 appData.users.forEach(u => {
                     if (!appData.accounts[u]) {
@@ -977,12 +1014,12 @@
             const pass = document.getElementById('login-pass').value;
             const err = document.getElementById('login-error');
             err.textContent = '';
-            if (!user) { err.textContent = 'Informe o usuário.'; return; }
+            if (!user) { err.textContent = 'Informe o utilizador.'; return; }
             ensureAccountsMigration();
             const acc = appData.accounts[user];
-            if (!acc) { err.textContent = 'Usuário ou senha incorretos.'; return; }
-            if (acc.blocked) { err.textContent = '🚫 Este usuário está bloqueado. Fale com o administrador.'; return; }
-            if ((acc.password || '') !== pass) { err.textContent = 'Usuário ou senha incorretos.'; return; }
+            if (!acc) { err.textContent = 'Utilizador ou senha incorretos.'; return; }
+            if (acc.blocked) { err.textContent = '🚫 Este utilizador está bloqueado. Fale com o administrador.'; return; }
+            if ((acc.password || '') !== pass) { err.textContent = 'Utilizador ou senha incorretos.'; return; }
 
             loggedInAccount = user;
             adminSessionActive = !!acc.isAdmin;
@@ -996,11 +1033,9 @@
             renderGlobalFeed();
         }
 
-        // ============ PAINEL DE ADMINISTRAÇÃO ============
         async function openAdminPanel() {
             if (!adminSessionActive) {
-                // Pede credenciais de admin
-                const u = await openModal("Painel de Administração", "Digite o nome de usuário do administrador:", "Usuário admin...");
+                const u = await openModal("Painel de Administração", "Digite o nome de utilizador do administrador:", "Utilizador admin...");
                 if (u === null) return;
                 const p = await openPasswordModal("Painel de Administração", "Digite a senha do administrador:");
                 if (p === null) return;
@@ -1066,15 +1101,15 @@
             const pEl = document.getElementById('admin-new-pass');
             const u = uEl.value.trim();
             const p = pEl.value;
-            if (!u) { openConfirmModal("Aviso", "Informe o nome de usuário.", true); return; }
+            if (!u) { openConfirmModal("Aviso", "Informe o nome de utilizador.", true); return; }
             if (!p) { openConfirmModal("Aviso", "Informe a senha inicial.", true); return; }
             ensureAccountsMigration();
-            if (appData.accounts[u]) { openConfirmModal("Aviso", "Já existe um usuário com esse nome.", true); return; }
+            if (appData.accounts[u]) { openConfirmModal("Aviso", "Já existe um utilizador com esse nome.", true); return; }
             appData.accounts[u] = { password: p, blocked: false, isAdmin: false };
             if (!appData.users) appData.users = [];
             if (!appData.users.includes(u)) appData.users.push(u);
             if (!appData.passwords) appData.passwords = {};
-            appData.passwords[u] = p; // mantém compatibilidade com a área de desenhista
+            appData.passwords[u] = p; 
             saveData();
             uEl.value = ''; pEl.value = '';
             renderAccountsTable();
@@ -1098,10 +1133,10 @@
             if (acc.isAdmin) { openConfirmModal("Aviso", "A conta Admin não pode ser bloqueada.", true); return; }
             const goingToBlock = !acc.blocked;
             const ok = await openConfirmModal(
-                goingToBlock ? "Bloquear Usuário" : "Desbloquear Usuário",
+                goingToBlock ? "Bloquear Utilizador" : "Desbloquear Utilizador",
                 goingToBlock
-                    ? `Bloquear "${name}"? Ele não poderá mais entrar. Você continua podendo acessar o perfil dele por "Entrar como" para transferir projetos.`
-                    : `Desbloquear "${name}" e liberar o acesso novamente?`
+                    ? `Bloquear "${name}"? Ele não poderá mais entrar. Continua a poder aceder ao perfil dele por "Entrar como" para transferir projetos.`
+                    : `Desbloquear "${name}" e libertar o acesso novamente?`
             );
             if (!ok) return;
             acc.blocked = goingToBlock;
@@ -1115,7 +1150,7 @@
                 openConfirmModal("Aviso", "A conta Admin não pode ser excluída.", true);
                 return;
             }
-            const ok = await openConfirmModal("Excluir Usuário", `Excluir a conta "${name}"? Os projetos dele continuam no sistema (transfira antes se necessário).`);
+            const ok = await openConfirmModal("Excluir Utilizador", `Excluir a conta "${name}"? Os projetos dele continuam no sistema (transfira antes se necessário).`);
             if (!ok) return;
             delete appData.accounts[name];
             if (Array.isArray(appData.users)) appData.users = appData.users.filter(u => u !== name);
@@ -1127,7 +1162,6 @@
         function adminEnterAs(name) {
             ensureAccountsMigration();
             if (!appData.users.includes(name)) appData.users.push(name);
-            // acessa direto sem senha (privilégio de admin)
             document.getElementById('view-admin').classList.add('hidden');
             document.getElementById('view-profiles').classList.add('hidden');
             currentUser = name;
@@ -1176,7 +1210,7 @@
 
         async function registerEvent(id) {
             const project = appData.projects.find(p => p.id === id);
-            const obs = await openModal("Registrar Acontecimento", "O que ocorreu com esse projeto?", "Ex: Cliente pediu alteração extra...");
+            const obs = await openModal("Registrar Acontecimento", "O que ocorreu com este projeto?", "Ex: O cliente pediu alteração extra...");
             if (obs !== null && obs.trim() !== "") { project.history.unshift({ stage: "📢 REGISTRO EXTRA", obs: obs, date: new Date().toLocaleString('pt-BR'), author: currentUser }); saveData(); }
         }
 
@@ -1188,7 +1222,7 @@
 
         async function deleteHistoryItem(projectId, historyIndex) {
             const project = appData.projects.find(p => p.id === projectId);
-            const confirm = await openConfirmModal("Apagar Etapa/Registro", "Deseja remover este item do histórico?");
+            const confirm = await openConfirmModal("Apagar Etapa/Registo", "Deseja remover este item do histórico?");
             if (confirm) {
                 project.history.splice(historyIndex, 1);
                 if (project.history.length === 0) {
@@ -1208,7 +1242,7 @@
                 const obs = await openModal("Retomar Projeto", "O impedimento foi resolvido?", "Descreva a solução...");
                 if (obs !== null) { project.isImpeded = false; project.history.unshift({ stage: "🟢 Retomado após Impedimento", obs: obs || "Impedimento solucionado", date: new Date().toLocaleString('pt-BR'), author: currentUser }); saveData(); }
             } else {
-                const obs = await openModal("Registrar Impedimento", "O projeto está travado?", "Motivo do impedimento (Obrigatório)");
+                const obs = await openModal("Registar Impedimento", "O projeto está travado?", "Motivo do impedimento (Obrigatório)");
                 if (obs !== null && obs.trim() !== "") { project.isImpeded = true; project.history.unshift({ stage: "🔴 IMPEDIMENTO / PAUSADO", obs: obs, date: new Date().toLocaleString('pt-BR'), author: currentUser }); saveData(); } 
                 else if (obs !== null) openConfirmModal("Atenção", "Para pausar, informe o motivo!", true);
             }
@@ -1271,13 +1305,13 @@
                 if(project.history && Array.isArray(project.history)) {
                     project.history.forEach((item, index) => {
                         const authorName = item.author ? item.author : project.owner; 
-                        const editableDate = `<span class="timeline-date editable-date" onclick="openDateModal('${project.id}', ${index})" title="Editar data retroativa">${item.date || ''} ✏️</span>`;
+                        const displayDate = `<span class="timeline-date" style="cursor: default; border: none;" title="Registado em">${item.date || ''}</span>`;
                         let stageColor = '';
                         if(item.stage && (item.stage === '📢 REGISTRO EXTRA' || item.stage === '📢 PROJETO TRANSFERIDO')) stageColor = 'color: #9333ea;';
                         if(item.stage && item.stage.includes('RETRABALHO INICIADO - INTERNO_GRAVE')) stageColor = 'color: #dc2626;';
                         if(item.stage && item.stage.includes('RETRABALHO INICIADO - INTERNO_LEVE')) stageColor = 'color: #eab308;';
                         if(item.stage && item.stage.includes('RETRABALHO INICIADO - EXTERNO')) stageColor = 'color: #ea580c;';
-                        historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${stageColor}">${item.stage || ''}</span></div><div class="timeline-obs"><span>↳ Obs: ${item.obs || ''} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span>${editableDate}</div></div>`;
+                        historyHtml += `<div class="timeline-item"><div class="timeline-top"><span style="${stageColor}">${item.stage || ''}</span></div><div class="timeline-obs"><span>↳ Obs: ${item.obs || ''} <br><small style="color:var(--primary)">👤 Por: ${authorName}</small></span>${displayDate}</div></div>`;
                     });
                 }
 
@@ -1299,7 +1333,7 @@
                     <div class="progress-container"><div class="progress-bar" style="width: ${progressPercent}%; background-color: ${isCompleted ? 'var(--success)' : (project.isImpeded ? 'var(--warning)' : 'var(--primary)')}"></div></div>
                     <p style="text-align: right; margin-top: 5px; font-size: 0.85rem; color: #6b7280; margin-bottom: 0;">Progresso: ${progressPercent}%</p>
                     <div class="timeline"><strong>Histórico e Observações:</strong><br>${historyHtml}</div>
-                    <div class="actions" style="margin-top: 15px; display: flex; justify-content: flex-end;"><button class="info" onclick="exportReportPDF('${project.id}')" style="width: auto; padding: 8px 15px;">📄 Preview PDF</button></div>`;
+                    <div class="actions" style="margin-top: 15px; display: flex; justify-content: flex-end;"><button class="info" onclick="exportReportPDF('${project.id}')" style="width: auto; padding: 8px 15px;">📄 Download PDF</button></div>`;
                 container.appendChild(card);
             });
         }
@@ -1533,10 +1567,16 @@
                     <div class="timeline"><strong>Histórico e Observações:</strong><br>${historyHtml}</div>
                     <div class="actions">
                         ${mainActionBtns}
-                        <button class="info" onclick="exportReportPDF('${project.id}')">📄 Preview PDF</button>
+                        <button class="info" onclick="exportReportPDF('${project.id}')">📄 Download PDF</button>
                     </div>`;
                 container.appendChild(card);
             });
+        }
+
+        function sanitizeForPDF(text) {
+            if (text === null || text === undefined) return ""; 
+            // Força a conversão para texto antes de limpar, evitando erros com números
+            return String(text).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/Ø/gi, '(diam)').replace(/º/g, 'o.').replace(/ª/g, 'a.').replace(/[^\x20-\x7E]/g, ''); 
         }
 
         function exportReportPDF(id) {
@@ -1579,7 +1619,9 @@
                 });
             }
             
-            const pdfBlob = doc.output('blob'); window.open(URL.createObjectURL(pdfBlob), '_blank');
+            // Faz o download direto ao invés de abrir aba nova para não cair no bloqueador de pop-ups
+            let safeName = sanitizeForPDF(project.name).replace(/[^a-zA-Z0-9]/g, '_');
+            doc.save(`Historico_Projeto_${safeName}.pdf`);
         }
 
         function exportDraftsmanReport() { 
@@ -1659,7 +1701,10 @@
                     yOffset += cardHeight + 6;
                 });
             }
-            const pdfBlob = doc.output('blob'); window.open(URL.createObjectURL(pdfBlob), '_blank');
+            
+            // Download direto em vez de nova aba
+            let safeTitle = sanitizeForPDF(titleSuffix).replace(/[^a-zA-Z0-9]/g, '_');
+            doc.save(`Relatorio_${safeTitle}.pdf`);
         }
     </script>
 </body>
